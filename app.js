@@ -1,5 +1,12 @@
 const INTELLIGENCE_ENDPOINT = './data/intelligence.json';
 
+const LIVE_ADAPTERS = [
+  {
+    id: 'site-health',
+    endpoint: 'https://site-health.oceanliners.net/api/curator-intelligence',
+  },
+];
+
 const escapeHtml = (value = '') => String(value)
   .replaceAll('&', '&amp;')
   .replaceAll('<', '&lt;')
@@ -88,11 +95,75 @@ function render(data) {
   renderStack('#activity-list', data.activity, 'No recent intelligence events are available.');
 }
 
+function mergeSystem(data, system) {
+  if (!system?.id) return;
+  const systems = Array.isArray(data.systems) ? [...data.systems] : [];
+  const index = systems.findIndex(item => item.id === system.id);
+  if (index >= 0) systems[index] = { ...systems[index], ...system, live: true };
+  else systems.push({ ...system, live: true });
+  data.systems = systems;
+}
+
+async function fetchAdapter(adapter) {
+  const response = await fetch(`${adapter.endpoint}?t=${Date.now()}`, { cache: 'no-store' });
+  if (!response.ok) throw new Error(`${adapter.id} returned ${response.status}`);
+  const payload = await response.json();
+  if (!payload?.ok || !payload?.system) throw new Error(`${adapter.id} returned an invalid intelligence signal`);
+  return payload;
+}
+
+async function mergeLiveAdapters(data) {
+  const results = await Promise.allSettled(LIVE_ADAPTERS.map(fetchAdapter));
+  let latestTimestamp = data.generatedAt || null;
+  let connectedCount = 0;
+
+  results.forEach((result, index) => {
+    const adapter = LIVE_ADAPTERS[index];
+    if (result.status === 'fulfilled') {
+      const payload = result.value;
+      mergeSystem(data, payload.system);
+      connectedCount += 1;
+
+      if (payload.generatedAt && (!latestTimestamp || new Date(payload.generatedAt) > new Date(latestTimestamp))) {
+        latestTimestamp = payload.generatedAt;
+      }
+
+      data.activity = [
+        {
+          title: `${payload.system.name} reporting live`,
+          summary: payload.system.summary,
+          meta: 'Live adapter · Curator Intelligence',
+        },
+        ...(Array.isArray(data.activity) ? data.activity : []),
+      ];
+    } else {
+      console.warn(`[Curator Intelligence] ${adapter.id} adapter unavailable`, result.reason);
+    }
+  });
+
+  const liveReporting = (data.systems || []).filter(system => system.live).length;
+  data.summary = {
+    ...(data.summary || {}),
+    toolsReporting: liveReporting,
+  };
+  data.generatedAt = latestTimestamp;
+
+  if (connectedCount > 0) {
+    data.overall = {
+      label: 'Intelligence layer online',
+      summary: `${connectedCount} live specialist adapter${connectedCount === 1 ? ' is' : 's are'} reporting. Cross-tool correlation will expand as additional systems are connected.`,
+    };
+  }
+
+  return data;
+}
+
 async function loadIntelligence() {
   try {
     const response = await fetch(`${INTELLIGENCE_ENDPOINT}?t=${Date.now()}`, { cache: 'no-store' });
     if (!response.ok) throw new Error(`Intelligence feed returned ${response.status}`);
-    const data = await response.json();
+    const baseData = await response.json();
+    const data = await mergeLiveAdapters(baseData);
     render(data);
   } catch (error) {
     console.error('[Curator Intelligence]', error);
