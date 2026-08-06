@@ -13,6 +13,18 @@ const LIVE_ADAPTERS = [
     id: 'link-map',
     endpoint: 'https://link-map.oceanliners.net/api/curator-intelligence',
   },
+  {
+    id: 'integrity',
+    endpoint: 'https://integrity.oceanliners.net/api/curator-intelligence',
+  },
+  {
+    id: 'speed',
+    endpoint: 'https://speed.oceanliners.net/api/curator-intelligence',
+  },
+  {
+    id: 'curator-indexer',
+    endpoint: 'https://curator-indexer.oceanliners.net/api/curator-intelligence',
+  },
 ];
 
 const escapeHtml = (value = '') => String(value)
