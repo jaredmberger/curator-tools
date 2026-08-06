@@ -1,14 +1,26 @@
-# CuratorOS Tools
+# Curator Intelligence
 
-CuratorOS Tools is the suite launcher for the research, site-assurance, search, maintenance, and publishing tools behind Ocean Liner Curator.
+`tools.oceanliners.net` is the unified intelligence layer for CuratorOS and the specialist systems behind Ocean Liner Curator.
 
-Primary address:
+## Architecture
 
-`https://tools.oceanliners.net/`
+CuratorOS now follows a three-layer model:
 
-## Included tools
+1. **Specialist tools observe** — Site Health, Curator Integrity, Curator Speed, Search Intelligence, Link Map, Curator Indexer, and Page Studio each continue to perform a focused job.
+2. **Curator Intelligence understands** — this repository normalizes signals from those tools, correlates findings by entity or URL, ranks priorities, surfaces opportunities, and tracks recent intelligence.
+3. **CuratorOS decides** — `curator.oceanliners.net` remains the central operating environment for evidence, records, decisions, knowledge workflows, interventions, and publication work.
 
+The intended flow is:
+
+`Observe → Normalize → Correlate → Prioritize → Decide → Act → Verify → Learn`
+
+## Primary addresses
+
+- **Curator Intelligence** — `https://tools.oceanliners.net/`
 - **CuratorOS** — `https://curator.oceanliners.net/`
+
+## Specialist tools
+
 - **Site Health** — `https://site-health.oceanliners.net/`
 - **Curator Integrity** — `https://integrity.oceanliners.net/`
 - **Curator Speed** — `https://speed.oceanliners.net/`
@@ -17,25 +29,82 @@ Primary address:
 - **Curator Indexer** — `https://curator-indexer.oceanliners.net/`
 - **Page Studio** — `https://page-studio.oceanliners.net/`
 
-CuratorOS remains the central operating environment. The other applications remain focused tools that support the broader workflow.
+## Intelligence data contract
+
+The dashboard currently consumes `data/intelligence.json`. This is the normalized contract between specialist systems and the Intelligence Center.
+
+Top-level fields:
+
+- `schemaVersion`
+- `generatedAt`
+- `overall`
+- `summary`
+- `systems`
+- `priorities`
+- `opportunities`
+- `activity`
+
+The initial file is deliberately safe: it reports adapters as pending rather than inventing live measurements.
+
+### System signal
+
+Each specialist system may provide:
+
+```json
+{
+  "id": "site-health",
+  "name": "Site Health",
+  "status": "good",
+  "statusLabel": "Healthy",
+  "value": "98%",
+  "summary": "Short human-readable interpretation.",
+  "detail": "Optional supporting metric",
+  "url": "https://site-health.oceanliners.net/"
+}
+```
+
+Supported status levels are currently `good`, `warning`, `critical`, and `info`.
+
+### Cross-tool priority
+
+Priorities should represent interpreted intelligence rather than raw scanner output:
+
+```json
+{
+  "title": "Strengthen a high-visibility page",
+  "summary": "Search visibility is strong, internal-link support is weak, and performance requires attention.",
+  "severity": "high",
+  "entity": "/ships/example",
+  "sources": ["Search Intelligence", "Link Map", "Curator Speed"]
+}
+```
+
+This is the core distinction of the Intelligence Center: raw findings remain inside specialist tools; Curator Intelligence surfaces what the combined evidence means.
+
+## Integration roadmap
+
+### Phase 1 — Intelligence shell
+
+Complete. The former tool launcher now includes system status, summary metrics, prioritized findings, opportunities, recent intelligence, architecture context, and direct access to the specialist tools.
+
+### Phase 2 — First live adapter
+
+Connect one specialist tool to the normalized data contract. Site Health is the recommended first implementation because its finding model is a good foundation for common severity, URL, timestamp, and status fields.
+
+### Phase 3 — Cross-tool correlation
+
+Add Search Intelligence and Link Map feeds, then correlate signals by canonical URL/entity. At this point the Intelligence Center can begin producing meaningful multi-system page dossiers and ranked actions.
+
+### Phase 4 — CuratorOS feedback loop
+
+Allow CuratorOS interventions and decisions to be represented in the intelligence layer so recommendations can be marked accepted, deferred, completed, or rejected and later compared with measured outcomes.
+
+### Phase 5 — Learning layer
+
+Use intervention/outcome history to improve ranking and recommendations. The system should eventually answer not only what needs attention, but which types of action have historically produced useful results for Ocean Liner Curator.
 
 ## Deployment
 
-This repository is intentionally lightweight and static. `index.html` and `styles.css` can be served directly with GitHub Pages.
+The repository remains compatible with static GitHub Pages. `index.html`, `styles.css`, `app.js`, and `data/intelligence.json` are served directly. The `CNAME` and `.nojekyll` files preserve the existing `tools.oceanliners.net` deployment.
 
-The repository includes a `CNAME` file for `tools.oceanliners.net` and a `.nojekyll` file so GitHub Pages can publish the files without Jekyll processing.
-
-To publish:
-
-1. In the repository settings, open **Pages**.
-2. Choose **Deploy from a branch**.
-3. Select `main` and `/ (root)`.
-4. Confirm the custom domain is `tools.oceanliners.net`.
-5. In Cloudflare DNS, point the `tools` hostname to the GitHub Pages host used for this repository.
-6. Enable HTTPS when GitHub reports the domain as ready.
-
-## Design intent
-
-`tools.oceanliners.net` answers one question: **What CuratorOS tools are available and where do I open them?**
-
-It is a launcher and suite overview, not another operating dashboard. CuratorOS itself remains the place where project records, evidence, findings, decisions, knowledge workflows, and publication work come together.
+A future server-side aggregator can replace the static JSON feed without requiring the dashboard UI to be redesigned, because `app.js` already consumes a normalized intelligence endpoint.
