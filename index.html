@@ -13,17 +13,23 @@
     window.__curatorSiteHealth = function(payload){ window.__CURATOR_ADAPTERS__['site-health'] = payload; };
     window.__curatorSearchIntelligence = function(payload){ window.__CURATOR_ADAPTERS__['search-intelligence'] = payload; };
     window.__curatorIntegrity = function(payload){ window.__CURATOR_ADAPTERS__['integrity'] = payload; };
+    window.__curatorSpeed = function(payload){ window.__CURATOR_ADAPTERS__['speed'] = payload; };
+    window.__curatorIndexer = function(payload){ window.__CURATOR_ADAPTERS__['curator-indexer'] = payload; };
   </script>
-  <script src="https://site-health.oceanliners.net/api/curator-intelligence?callback=__curatorSiteHealth"></script>
-  <script src="https://search-intelligence.oceanliners.net/api/curator-intelligence?callback=__curatorSearchIntelligence"></script>
-  <script src="https://integrity.oceanliners.net/api/curator-intelligence?callback=__curatorIntegrity"></script>
+  <script data-cfasync="false" src="https://site-health.oceanliners.net/api/curator-intelligence?callback=__curatorSiteHealth"></script>
+  <script data-cfasync="false" src="https://search-intelligence.oceanliners.net/api/curator-intelligence?callback=__curatorSearchIntelligence"></script>
+  <script data-cfasync="false" src="https://integrity.oceanliners.net/api/curator-intelligence?callback=__curatorIntegrity"></script>
+  <script data-cfasync="false" src="https://speed.oceanliners.net/api/curator-intelligence?callback=__curatorSpeed"></script>
+  <script data-cfasync="false" src="https://curator-indexer.oceanliners.net/api/curator-intelligence?callback=__curatorIndexer"></script>
   <script>
     (function(){
       const nativeFetch = window.fetch.bind(window);
       const ids = new Map([
         ['site-health.oceanliners.net','site-health'],
         ['search-intelligence.oceanliners.net','search-intelligence'],
-        ['integrity.oceanliners.net','integrity']
+        ['integrity.oceanliners.net','integrity'],
+        ['speed.oceanliners.net','speed'],
+        ['curator-indexer.oceanliners.net','curator-indexer']
       ]);
       window.fetch = async function(input, init){
         let url;
@@ -43,14 +49,16 @@
       };
     })();
   </script>
-  <script src="./app.js?v=20260806-11" defer></script>
+  <script src="./app.js?v=20260806-12" defer></script>
   <script>
     window.addEventListener('load', function(){
       setTimeout(function(){
         const checks = [
           ['site-health','Site Health'],
           ['search-intelligence','Search Intelligence'],
-          ['integrity','Curator Integrity']
+          ['integrity','Curator Integrity'],
+          ['speed','Curator Speed'],
+          ['curator-indexer','Curator Indexer']
         ];
         for (const [id,name] of checks) {
           const card = [...document.querySelectorAll('.system-card')].find(x => x.querySelector('h3')?.textContent?.trim() === name);
@@ -64,10 +72,10 @@
             if (badge) { badge.textContent = payload.system.statusLabel || 'Connected'; badge.className = `badge ${payload.system.status || 'good'}`; }
             if (value) value.textContent = payload.system.value ?? 'Live';
             if (summary) summary.textContent = payload.system.summary || `${name} is connected.`;
-            if (detail) detail.textContent = `${payload.system.detail || 'Live callback loaded'} · build CI-20260806-11`;
+            if (detail) detail.textContent = `${payload.system.detail || 'Live callback loaded'} · build CI-20260806-12`;
           } else {
             if (badge) { badge.textContent = 'Callback missing'; badge.className = 'badge warning'; }
-            if (detail) detail.textContent = `No callback payload executed · build CI-20260806-11`;
+            if (detail) detail.textContent = `No callback payload executed · build CI-20260806-12`;
           }
         }
       }, 1200);
