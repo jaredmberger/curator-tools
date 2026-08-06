@@ -3,7 +3,6 @@
   const scriptAdapters = new Map([
     ['site-health.oceanliners.net', 'site-health'],
     ['search-intelligence.oceanliners.net', 'search-intelligence'],
-    ['integrity.oceanliners.net', 'integrity'],
   ]);
 
   let seq = 0;
@@ -12,7 +11,7 @@
     return new Promise((resolve, reject) => {
       const callbackName = `__curatorAdapter_${adapterId.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}_${++seq}`;
       const script = document.createElement('script');
-      const timeout = setTimeout(() => cleanup(new Error(`${adapterId} script adapter timed out`)), 12000);
+      const timeout = setTimeout(() => cleanup(new Error(`${adapterId} script adapter timed out`)), 8000);
 
       function cleanup(error, payload) {
         clearTimeout(timeout);
