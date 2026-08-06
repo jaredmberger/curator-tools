@@ -43,7 +43,36 @@
       };
     })();
   </script>
-  <script src="./app.js?v=20260806-10" defer></script>
+  <script src="./app.js?v=20260806-11" defer></script>
+  <script>
+    window.addEventListener('load', function(){
+      setTimeout(function(){
+        const checks = [
+          ['site-health','Site Health'],
+          ['search-intelligence','Search Intelligence'],
+          ['integrity','Curator Integrity']
+        ];
+        for (const [id,name] of checks) {
+          const card = [...document.querySelectorAll('.system-card')].find(x => x.querySelector('h3')?.textContent?.trim() === name);
+          if (!card) continue;
+          const payload = window.__CURATOR_ADAPTERS__ && window.__CURATOR_ADAPTERS__[id];
+          const badge = card.querySelector('.badge');
+          const value = card.querySelector('.system-value');
+          const summary = card.querySelector('p');
+          const detail = card.querySelector('footer span');
+          if (payload?.ok && payload?.system) {
+            if (badge) { badge.textContent = payload.system.statusLabel || 'Connected'; badge.className = `badge ${payload.system.status || 'good'}`; }
+            if (value) value.textContent = payload.system.value ?? 'Live';
+            if (summary) summary.textContent = payload.system.summary || `${name} is connected.`;
+            if (detail) detail.textContent = `${payload.system.detail || 'Live callback loaded'} · build CI-20260806-11`;
+          } else {
+            if (badge) { badge.textContent = 'Callback missing'; badge.className = 'badge warning'; }
+            if (detail) detail.textContent = `No callback payload executed · build CI-20260806-11`;
+          }
+        }
+      }, 1200);
+    });
+  </script>
 </head>
 <body>
   <div class="page-shell">
