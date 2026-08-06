@@ -1,30 +1,13 @@
 const INTELLIGENCE_ENDPOINT = './data/intelligence.json';
+const MAX_CORRELATION_PAGES = 8;
 
 const LIVE_ADAPTERS = [
-  {
-    id: 'site-health',
-    endpoint: 'https://site-health.oceanliners.net/api/curator-intelligence',
-  },
-  {
-    id: 'search-intelligence',
-    endpoint: 'https://search-intelligence.oceanliners.net/api/curator-intelligence',
-  },
-  {
-    id: 'link-map',
-    endpoint: 'https://link-map.oceanliners.net/api/curator-intelligence',
-  },
-  {
-    id: 'integrity',
-    endpoint: 'https://integrity.oceanliners.net/api/curator-intelligence',
-  },
-  {
-    id: 'speed',
-    endpoint: 'https://speed.oceanliners.net/api/curator-intelligence',
-  },
-  {
-    id: 'curator-indexer',
-    endpoint: 'https://curator-indexer.oceanliners.net/api/curator-intelligence',
-  },
+  { id: 'site-health', endpoint: 'https://site-health.oceanliners.net/api/curator-intelligence' },
+  { id: 'search-intelligence', endpoint: 'https://search-intelligence.oceanliners.net/api/curator-intelligence' },
+  { id: 'link-map', endpoint: 'https://link-map.oceanliners.net/api/curator-intelligence' },
+  { id: 'integrity', endpoint: 'https://integrity.oceanliners.net/api/curator-intelligence' },
+  { id: 'speed', endpoint: 'https://speed.oceanliners.net/api/curator-intelligence' },
+  { id: 'curator-indexer', endpoint: 'https://curator-indexer.oceanliners.net/api/curator-intelligence' },
 ];
 
 const escapeHtml = (value = '') => String(value)
@@ -156,19 +139,16 @@ function mergeUnique(base = [], incoming = [], keyFn) {
 
 function mergeAdapterPayload(data, payload) {
   mergeSystem(data, payload.system);
-
   data.priorities = mergeUnique(
     Array.isArray(data.priorities) ? data.priorities : [],
     Array.isArray(payload.priorities) ? payload.priorities : [],
     item => `${item.title || ''}|${item.entity || ''}|${item.query || ''}`,
   ).sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
-
   data.opportunities = mergeUnique(
     Array.isArray(data.opportunities) ? data.opportunities : [],
     Array.isArray(payload.opportunities) ? payload.opportunities : [],
     item => `${item.title || ''}|${item.entity || ''}|${item.query || ''}`,
   );
-
   data.activity = mergeUnique(
     Array.isArray(data.activity) ? data.activity : [],
     [
@@ -183,72 +163,194 @@ function mergeAdapterPayload(data, payload) {
   );
 }
 
-function correlateSignals(data, payloads) {
-  const search = payloads.get('search-intelligence');
-  const linkMap = payloads.get('link-map');
-  if (!search?.ok || !linkMap?.ok) return;
-
-  const graphByPath = new Map((linkMap.pages || []).map(page => [normalizeEntity(page.path), page]));
-  const searchSignals = [
-    ...(Array.isArray(search.priorities) ? search.priorities : []),
-    ...(Array.isArray(search.opportunities) ? search.opportunities : []),
+function collectSearchSignals(search) {
+  const raw = [
+    ...(Array.isArray(search?.priorities) ? search.priorities : []),
+    ...(Array.isArray(search?.opportunities) ? search.opportunities : []),
   ];
-
-  const correlated = [];
   const seen = new Set();
-
-  for (const signal of searchSignals) {
+  return raw.filter(signal => {
     const entity = normalizeEntity(signal.entity);
-    if (!entity || seen.has(entity)) continue;
-    const graph = graphByPath.get(entity);
-    if (!graph) continue;
+    if (!entity) return false;
+    const key = `${entity}|${signal.query || ''}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, MAX_CORRELATION_PAGES);
+}
 
-    const inbound = Number(graph.inboundCount || 0);
-    const hasSuggestions = Array.isArray(graph.suggestions) && graph.suggestions.length > 0;
-    const weakSupport = graph.orphan || inbound <= 1;
-    if (!weakSupport) continue;
+function loadJsonp(url, callbackBase = '__curatorCorrelation') {
+  return new Promise((resolve, reject) => {
+    const callback = `${callbackBase}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const script = document.createElement('script');
+    const timer = setTimeout(() => cleanup(new Error('Bounded intelligence request timed out')), 10000);
+    const cleanup = (error, value) => {
+      clearTimeout(timer);
+      try { delete window[callback]; } catch { window[callback] = undefined; }
+      script.remove();
+      if (error) reject(error); else resolve(value);
+    };
+    window[callback] = payload => cleanup(null, payload);
+    script.onerror = () => cleanup(new Error('Bounded intelligence callback failed'));
+    const target = new URL(url);
+    target.searchParams.set('callback', callback);
+    target.searchParams.set('v', '20260806-v2');
+    script.src = target.href;
+    document.head.appendChild(script);
+  });
+}
 
-    seen.add(entity);
-    const searchSeverity = signal.severity || (Number(signal.score || 0) >= 85 ? 'high' : 'medium');
-    const severity = graph.orphan || searchSeverity === 'high' ? 'high' : 'medium';
-    const graphDescription = graph.orphan
-      ? 'currently has no inbound internal links'
-      : `has only ${inbound} inbound internal link${inbound === 1 ? '' : 's'}`;
-    const recommendation = hasSuggestions
-      ? `Link Map has ${graph.suggestions.length} candidate source page${graph.suggestions.length === 1 ? '' : 's'} available to strengthen support.`
-      : 'Review the page in Link Map for appropriate internal-link support.';
+async function fetchDetailedIntegrity(signals) {
+  const pages = [...new Set(signals.map(signal => normalizeEntity(signal.entity)).filter(Boolean))].slice(0, MAX_CORRELATION_PAGES);
+  if (!pages.length) return null;
+  const url = new URL('https://integrity.oceanliners.net/api/curator-intelligence');
+  pages.forEach(path => url.searchParams.append('page', `https://oceanliners.net${path}`));
+  try {
+    const payload = await loadJsonp(url.href, '__curatorIntegrityV2');
+    return payload?.ok ? payload : null;
+  } catch (error) {
+    console.warn('[Curator Intelligence] bounded Integrity correlation unavailable', error);
+    return null;
+  }
+}
 
-    correlated.push({
-      title: signal.title?.toLowerCase().includes('decline') || signal.title?.toLowerCase().includes('drop')
-        ? 'Search decline coincides with weak internal-link support'
-        : 'Search opportunity coincides with weak internal-link support',
-      summary: `${signal.entity} is showing a Search Intelligence signal and ${graphDescription}. ${recommendation}`,
-      severity,
-      entity: signal.entity,
-      query: signal.query || '',
-      score: Math.min(100, Number(signal.score || 70) + (graph.orphan ? 12 : 8)),
-      sources: ['Search Intelligence', 'Link Map'],
-      correlated: true,
-    });
+function healthMapFromSearch(search) {
+  const pages = search?.technicalContext?.pages || [];
+  return new Map(pages.map(page => [normalizeEntity(page.path), page]));
+}
+
+function integrityMap(payload) {
+  return new Map((payload?.pages || []).map(page => [normalizeEntity(page.path || page.url), page]));
+}
+
+function graphMap(payload) {
+  return new Map((payload?.pages || []).map(page => [normalizeEntity(page.path), page]));
+}
+
+function hasTechnicalBlocker(health) {
+  if (!health) return false;
+  return health.ok === false ||
+    (health.httpStatus && Number(health.httpStatus) !== 200) ||
+    health.canonicalOk === false ||
+    health.indexable === false ||
+    (Array.isArray(health.issues) && health.issues.length > 0);
+}
+
+function technicalDescription(health) {
+  const parts = [];
+  if (health?.httpStatus && Number(health.httpStatus) !== 200) parts.push(`HTTP ${health.httpStatus}`);
+  if (health?.canonicalOk === false) parts.push('canonical mismatch');
+  if (health?.indexable === false) parts.push('indexability problem');
+  if (Array.isArray(health?.issues)) parts.push(...health.issues.slice(0, 2));
+  return [...new Set(parts)].join(', ') || 'a verified technical issue';
+}
+
+function isSearchDecline(signal) {
+  const text = `${signal.title || ''} ${signal.summary || ''}`.toLowerCase();
+  return /decline|drop|fell|fall|loss|lost|down|decrease/.test(text);
+}
+
+function integritySeverity(page) {
+  const findings = page?.findings || [];
+  if (findings.some(f => ['error', 'critical'].includes(String(f.severity).toLowerCase()))) return 'high';
+  if (findings.some(f => ['warning', 'medium'].includes(String(f.severity).toLowerCase()))) return 'medium';
+  return findings.length ? 'low' : 'low';
+}
+
+function buildConclusion(signal, health, integrity, graph) {
+  const entity = normalizeEntity(signal.entity);
+  const baseScore = Math.max(40, Number(signal.score || 60));
+  const decline = isSearchDecline(signal);
+  const technical = hasTechnicalBlocker(health);
+  const integrityProblem = Boolean(integrity && integrity.ok === false && (integrity.findingCount || integrity.findings?.length));
+  const inbound = Number(graph?.inboundCount || 0);
+  const weakLinks = Boolean(graph && (graph.orphan || inbound <= 1));
+  const sources = ['Search Intelligence'];
+  if (technical) sources.push('Site Health');
+  if (integrityProblem) sources.push('Curator Integrity');
+  if (weakLinks) sources.push('Link Map');
+
+  if (technical) {
+    const extra = [];
+    if (integrityProblem) extra.push(`${integrity.findingCount || integrity.findings.length} Integrity finding${Number(integrity.findingCount || integrity.findings.length) === 1 ? '' : 's'}`);
+    if (weakLinks) extra.push(graph.orphan ? 'no inbound internal links' : `only ${inbound} inbound internal link${inbound === 1 ? '' : 's'}`);
+    return {
+      title: decline ? 'Search decline coincides with a technical blocker' : 'Search change coincides with a technical blocker',
+      summary: `${signal.entity} has ${technicalDescription(health)}. Fix the technical issue before changing content${extra.length ? `; secondary evidence also shows ${extra.join(' and ')}` : ''}.`,
+      severity: 'high', score: Math.min(100, baseScore + 25), entity: signal.entity, query: signal.query || '', sources, correlated: true, conclusionType: 'technical-first',
+    };
   }
 
-  if (!correlated.length) return;
+  if (integrityProblem) {
+    const count = Number(integrity.findingCount || integrity.findings?.length || 0);
+    return {
+      title: decline ? 'Search decline coincides with Integrity findings' : 'Search change coincides with Integrity findings',
+      summary: `${signal.entity} has no verified technical blocker, but Curator Integrity found ${count} active standards issue${count === 1 ? '' : 's'}. Review those findings before making broader editorial changes${weakLinks ? `; Link Map also shows ${graph.orphan ? 'orphan risk' : `only ${inbound} inbound link${inbound === 1 ? '' : 's'}`}` : ''}.`,
+      severity: integritySeverity(integrity), score: Math.min(100, baseScore + 18), entity: signal.entity, query: signal.query || '', sources, correlated: true, conclusionType: 'integrity-first',
+    };
+  }
+
+  if (weakLinks) {
+    const suggestions = Array.isArray(graph.suggestions) ? graph.suggestions.length : 0;
+    return {
+      title: decline ? 'Search decline coincides with weak internal-link support' : 'Search opportunity coincides with weak internal-link support',
+      summary: `${signal.entity} has no technical or Integrity blocker, but ${graph.orphan ? 'currently has no inbound internal links' : `has only ${inbound} inbound internal link${inbound === 1 ? '' : 's'}`}. ${suggestions ? `Link Map has ${suggestions} candidate source page${suggestions === 1 ? '' : 's'} to review.` : 'Review Link Map for appropriate supporting links.'}`,
+      severity: decline ? 'high' : 'medium', score: Math.min(100, baseScore + (graph.orphan ? 14 : 10)), entity: signal.entity, query: signal.query || '', sources, correlated: true, conclusionType: 'links-first',
+    };
+  }
+
+  return {
+    title: decline ? 'Search decline has no corroborating site issue yet' : 'Search change has no corroborating site issue yet',
+    summary: `${signal.entity} shows a Search Intelligence signal, while available Site Health, Integrity, and Link Map evidence does not identify an immediate site-side cause. Monitor the next Watchtower snapshot before intervening.`,
+    severity: 'low', score: Math.min(65, baseScore), entity: signal.entity, query: signal.query || '', sources, correlated: true, conclusionType: 'monitor',
+  };
+}
+
+async function correlateSignalsV2(data, payloads) {
+  const search = payloads.get('search-intelligence');
+  if (!search?.ok) return 0;
+  const signals = collectSearchSignals(search);
+  if (!signals.length) return 0;
+
+  const detailedIntegrity = await fetchDetailedIntegrity(signals);
+  if (detailedIntegrity?.system) {
+    payloads.set('integrity-detail', detailedIntegrity);
+  }
+
+  const healthByPath = healthMapFromSearch(search);
+  const integrityByPath = integrityMap(detailedIntegrity);
+  const graphByPath = graphMap(payloads.get('link-map'));
+  const conclusions = signals.map(signal => {
+    const entity = normalizeEntity(signal.entity);
+    return buildConclusion(signal, healthByPath.get(entity), integrityByPath.get(entity), graphByPath.get(entity));
+  });
+  const correlatedEntities = new Set(conclusions.map(item => normalizeEntity(item.entity)));
+
+  data.priorities = (Array.isArray(data.priorities) ? data.priorities : []).filter(item => {
+    const entity = normalizeEntity(item.entity);
+    const sources = item.sources || [];
+    const isRawSpecialistSignal = sources.length === 1 && ['Search Intelligence', 'Curator Integrity'].includes(sources[0]);
+    return !(entity && correlatedEntities.has(entity) && isRawSpecialistSignal);
+  });
 
   data.priorities = mergeUnique(
-    Array.isArray(data.priorities) ? data.priorities : [],
-    correlated,
-    item => `${item.title || ''}|${item.entity || ''}|${item.query || ''}`,
+    data.priorities,
+    conclusions,
+    item => `${item.title || ''}|${normalizeEntity(item.entity)}|${item.query || ''}`,
   ).sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
 
+  const actionable = conclusions.filter(item => item.conclusionType !== 'monitor').length;
+  const monitored = conclusions.length - actionable;
   data.activity = mergeUnique(
     Array.isArray(data.activity) ? data.activity : [],
     [{
-      title: 'Cross-tool correlation completed',
-      summary: `${correlated.length} page${correlated.length === 1 ? '' : 's'} matched between Search Intelligence and Link Map with actionable combined signals.`,
-      meta: 'Curator Intelligence · Search Intelligence + Link Map',
+      title: 'Correlation Engine v2 completed',
+      summary: `${conclusions.length} search-signaled page${conclusions.length === 1 ? '' : 's'} evaluated across technical health, Integrity standards, and internal-link support; ${actionable} actionable and ${monitored} monitor-only conclusion${monitored === 1 ? '' : 's'}.`,
+      meta: 'Curator Intelligence · Correlation Engine v2',
     }],
     item => `${item.title || ''}|${item.meta || ''}`,
   );
+  return conclusions.length;
 }
 
 async function fetchAdapter(adapter) {
@@ -272,21 +374,16 @@ async function mergeLiveAdapters(data) {
       payloads.set(adapter.id, payload);
       mergeAdapterPayload(data, payload);
       connectedCount += 1;
-
-      if (payload.generatedAt && (!latestTimestamp || new Date(payload.generatedAt) > new Date(latestTimestamp))) {
-        latestTimestamp = payload.generatedAt;
-      }
+      if (payload.generatedAt && (!latestTimestamp || new Date(payload.generatedAt) > new Date(latestTimestamp))) latestTimestamp = payload.generatedAt;
     } else {
       console.warn(`[Curator Intelligence] ${adapter.id} adapter unavailable`, result.reason);
     }
   });
 
-  correlateSignals(data, payloads);
-
+  const correlatedCount = await correlateSignalsV2(data, payloads);
   const liveReporting = (data.systems || []).filter(system => system.live).length;
   const priorities = Array.isArray(data.priorities) ? data.priorities : [];
   const criticalFailures = priorities.filter(item => item.severity === 'critical').length;
-  const correlatedCount = priorities.filter(item => item.correlated).length;
   data.summary = {
     ...(data.summary || {}),
     activeFindings: priorities.length,
@@ -297,17 +394,15 @@ async function mergeLiveAdapters(data) {
   data.generatedAt = latestTimestamp;
 
   if (connectedCount > 0) {
-    const signalCount = priorities.length;
     data.overall = {
-      label: correlatedCount ? 'Cross-tool intelligence active' : signalCount ? 'Intelligence active' : 'Intelligence layer online',
+      label: correlatedCount ? 'Cross-tool intelligence active' : priorities.length ? 'Intelligence active' : 'Intelligence layer online',
       summary: correlatedCount
-        ? `${connectedCount} live specialist adapters are reporting. ${correlatedCount} cross-tool conclusion${correlatedCount === 1 ? ' has' : 's have'} been produced by correlating Search Intelligence with Link Map.`
-        : signalCount
-          ? `${connectedCount} live specialist adapters are reporting with ${signalCount} normalized intelligence signal${signalCount === 1 ? '' : 's'}.`
+        ? `${connectedCount} live specialist adapters are reporting. Correlation Engine v2 produced ${correlatedCount} page-level conclusion${correlatedCount === 1 ? '' : 's'} from the current Search Intelligence signals.`
+        : priorities.length
+          ? `${connectedCount} live specialist adapters are reporting with ${priorities.length} normalized intelligence signal${priorities.length === 1 ? '' : 's'}.`
           : `${connectedCount} live specialist adapter${connectedCount === 1 ? ' is' : 's are'} reporting.`,
     };
   }
-
   return data;
 }
 
