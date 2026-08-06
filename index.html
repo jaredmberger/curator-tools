@@ -4,131 +4,112 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#08110f">
-  <meta name="description" content="The CuratorOS Tool Suite for Ocean Liner Curator — research, site assurance, search intelligence, publishing, and maintenance tools.">
-  <title>CuratorOS Tool Suite | Ocean Liner Curator</title>
+  <meta name="description" content="Curator Intelligence is the cross-tool intelligence center for CuratorOS and Ocean Liner Curator.">
+  <title>Curator Intelligence | CuratorOS</title>
   <link rel="canonical" href="https://tools.oceanliners.net/">
-  <link rel="stylesheet" href="./styles.css?v=20260805-1">
+  <link rel="stylesheet" href="./styles.css?v=20260805-2">
+  <script src="./app.js?v=20260805-1" defer></script>
 </head>
 <body>
   <div class="page-shell">
     <header class="site-header">
-      <a class="brand" href="https://oceanliners.net/" aria-label="Ocean Liner Curator home">
+      <a class="brand" href="#overview" aria-label="Curator Intelligence home">
         <span class="brand-mark" aria-hidden="true">✦</span>
-        <span><small>Ocean Liner Curator</small><strong>CuratorOS Tool Suite</strong></span>
+        <span><small>CuratorOS</small><strong>Curator Intelligence</strong></span>
       </a>
-      <nav class="header-links" aria-label="Primary links">
-        <a href="https://curator.oceanliners.net/">Open CuratorOS</a>
-        <a href="https://oceanliners.net/">Main Site</a>
+      <nav class="header-links" aria-label="Primary navigation">
+        <a href="#overview">Overview</a>
+        <a href="#attention">Attention</a>
+        <a href="#tools">Tools</a>
+        <a class="curator-link" href="https://curator.oceanliners.net/">Open CuratorOS</a>
       </nav>
     </header>
 
     <main>
-      <section class="hero">
-        <p class="eyebrow">Research · Preservation · Publishing · Site Assurance</p>
-        <h1>One front door for the tools behind Ocean Liner Curator.</h1>
-        <p class="hero-copy">CuratorOS and its connected tools support the research, maintenance, technical quality, search visibility, and publishing workflow of Ocean Liner Curator.</p>
-        <div class="hero-actions">
-          <a class="button primary" href="https://curator.oceanliners.net/">Enter CuratorOS</a>
-          <a class="button" href="#all-tools">Browse the suite</a>
-        </div>
-      </section>
-
-      <section class="suite-intro" aria-labelledby="suite-heading">
+      <section id="overview" class="hero intelligence-hero">
         <div>
-          <p class="eyebrow">The operating system</p>
-          <h2 id="suite-heading">CuratorOS</h2>
-          <p>CuratorOS is the central operating environment for project records, knowledge work, findings, workflows, and publishing decisions. The surrounding tools remain focused engines that feed or support that work.</p>
+          <p class="eyebrow">Unified intelligence center</p>
+          <h1>See what the whole CuratorOS system knows.</h1>
+          <p class="hero-copy">Curator Intelligence combines signals from site assurance, search, internal linking, indexing, performance, and publishing into one operational view—then turns those signals into priorities.</p>
+          <div class="hero-actions">
+            <a class="button primary" href="#attention">Review priorities</a>
+            <a class="button" href="#tools">Open a specialist tool</a>
+          </div>
         </div>
-        <a class="featured-card" href="https://curator.oceanliners.net/">
-          <span class="status"><i></i> Live</span>
-          <span class="tool-icon">OS</span>
-          <strong>Open CuratorOS</strong>
-          <span>Project records, knowledge workflows, findings, publishing, and the central CuratorOS operating surface.</span>
-          <b>Launch tool →</b>
-        </a>
+        <aside class="system-pulse" aria-label="System pulse">
+          <span class="pulse-label"><i></i> Intelligence layer online</span>
+          <strong id="overall-status">System normal</strong>
+          <p id="overall-summary">Loading the current CuratorOS intelligence snapshot…</p>
+          <small id="snapshot-time">Snapshot pending</small>
+        </aside>
       </section>
 
-      <section id="all-tools" class="tool-section">
+      <section class="metric-grid" aria-label="Curator Intelligence summary">
+        <article class="metric-card"><span>Active findings</span><strong id="metric-findings">—</strong><small>cross-tool findings</small></article>
+        <article class="metric-card"><span>Priority actions</span><strong id="metric-priorities">—</strong><small>recommended next actions</small></article>
+        <article class="metric-card"><span>Tools reporting</span><strong id="metric-tools">—</strong><small>connected intelligence sources</small></article>
+        <article class="metric-card"><span>Critical failures</span><strong id="metric-critical">—</strong><small>requiring immediate attention</small></article>
+      </section>
+
+      <section class="intelligence-section" aria-labelledby="systems-title">
         <div class="section-heading">
-          <div><p class="eyebrow">Site assurance</p><h2>Quality, integrity & performance</h2></div>
-          <p>Tools that inspect how the site works and whether it conforms to current project standards.</p>
+          <div><p class="eyebrow">System intelligence</p><h2 id="systems-title">One view across every specialist engine.</h2></div>
+          <p>Each tool keeps doing one job well. This layer normalizes their signals so relationships and priorities become visible.</p>
+        </div>
+        <div id="system-grid" class="system-grid" aria-live="polite"></div>
+      </section>
+
+      <section id="attention" class="intelligence-section attention-section" aria-labelledby="attention-title">
+        <div class="section-heading">
+          <div><p class="eyebrow">What needs attention</p><h2 id="attention-title">Prioritized intelligence.</h2></div>
+          <p>Findings are ranked across systems instead of being trapped inside separate dashboards.</p>
+        </div>
+        <div id="priority-list" class="priority-list" aria-live="polite"></div>
+      </section>
+
+      <section class="intelligence-section split-section" aria-label="Opportunities and activity">
+        <div>
+          <div class="section-heading compact"><div><p class="eyebrow">Opportunities</p><h2>Where to improve next.</h2></div></div>
+          <div id="opportunity-list" class="stack-list"></div>
+        </div>
+        <div>
+          <div class="section-heading compact"><div><p class="eyebrow">Recent intelligence</p><h2>What the system has noticed.</h2></div></div>
+          <div id="activity-list" class="stack-list"></div>
+        </div>
+      </section>
+
+      <section class="architecture" aria-labelledby="architecture-title">
+        <p class="eyebrow">CuratorOS architecture</p>
+        <h2 id="architecture-title">Sensors → Intelligence → Decisions.</h2>
+        <div class="architecture-flow">
+          <div><span>Specialist tools</span><strong>Observe</strong><small>Health · Search · Links · Integrity · Speed · Indexing</small></div>
+          <b>→</b>
+          <div class="active"><span>Curator Intelligence</span><strong>Understand</strong><small>Correlate · Rank · Recommend · Track</small></div>
+          <b>→</b>
+          <div><span>CuratorOS</span><strong>Decide</strong><small>Record · Review · Act · Preserve knowledge</small></div>
+        </div>
+      </section>
+
+      <section id="tools" class="tool-section intelligence-section">
+        <div class="section-heading">
+          <div><p class="eyebrow">Specialist instruments</p><h2>Open the underlying tools.</h2></div>
+          <p>The Intelligence Center does not replace these systems. It connects what they know.</p>
         </div>
         <div class="tool-grid">
-          <a class="tool-card" href="https://site-health.oceanliners.net/">
-            <span class="status"><i></i> Live</span><span class="tool-icon">SH</span>
-            <h3>Site Health</h3>
-            <p>Technical auditing for status codes, canonicals, indexability, structural issues, and actionable site-health findings.</p>
-            <span class="launch">Open Site Health →</span>
-          </a>
-          <a class="tool-card" href="https://integrity.oceanliners.net/">
-            <span class="status"><i></i> Live</span><span class="tool-icon">CI</span>
-            <h3>Curator Integrity</h3>
-            <p>Standards and consistency auditing across metadata, accessibility, structure, editorial conventions, and documented exceptions.</p>
-            <span class="launch">Open Curator Integrity →</span>
-          </a>
-          <a class="tool-card" href="https://speed.oceanliners.net/">
-            <span class="status"><i></i> Live</span><span class="tool-icon">CS</span>
-            <h3>Curator Speed</h3>
-            <p>Performance-focused diagnostics for identifying pages and assets that need attention before they become user-facing friction.</p>
-            <span class="launch">Open Curator Speed →</span>
-          </a>
+          <a class="tool-card" data-tool="curatoros" href="https://curator.oceanliners.net/"><span class="tool-icon">OS</span><h3>CuratorOS</h3><p>Project records, knowledge workflows, decisions, evidence, and publishing work.</p><span class="launch">Open CuratorOS →</span></a>
+          <a class="tool-card" data-tool="site-health" href="https://site-health.oceanliners.net/"><span class="tool-icon">SH</span><h3>Site Health</h3><p>Technical auditing for status codes, canonicals, indexability, and structural issues.</p><span class="launch">Open Site Health →</span></a>
+          <a class="tool-card" data-tool="integrity" href="https://integrity.oceanliners.net/"><span class="tool-icon">CI</span><h3>Curator Integrity</h3><p>Standards, metadata, accessibility, structure, and editorial consistency auditing.</p><span class="launch">Open Curator Integrity →</span></a>
+          <a class="tool-card" data-tool="speed" href="https://speed.oceanliners.net/"><span class="tool-icon">CS</span><h3>Curator Speed</h3><p>Performance diagnostics for pages and assets creating user-facing friction.</p><span class="launch">Open Curator Speed →</span></a>
+          <a class="tool-card" data-tool="search" href="https://search-intelligence.oceanliners.net/"><span class="tool-icon">SI</span><h3>Search Intelligence</h3><p>Search Console intelligence, Watchtower history, outcomes, and intervention learning.</p><span class="launch">Open Search Intelligence →</span></a>
+          <a class="tool-card" data-tool="links" href="https://link-map.oceanliners.net/"><span class="tool-icon">LM</span><h3>Link Map</h3><p>Internal-link graph intelligence, cluster strength, orphan risk, and opportunities.</p><span class="launch">Open Link Map →</span></a>
+          <a class="tool-card" data-tool="indexer" href="https://curator-indexer.oceanliners.net/"><span class="tool-icon">IX</span><h3>Curator Indexer</h3><p>Page inventory, content indexing, coverage, and structured project data.</p><span class="launch">Open Curator Indexer →</span></a>
+          <a class="tool-card" data-tool="page-studio" href="https://page-studio.oceanliners.net/"><span class="tool-icon">PS</span><h3>Page Studio</h3><p>Edit, validate, review, and prepare site changes for publication.</p><span class="launch">Open Page Studio →</span></a>
         </div>
-      </section>
-
-      <section class="tool-section">
-        <div class="section-heading">
-          <div><p class="eyebrow">Search & discovery</p><h2>Visibility, relationships & coverage</h2></div>
-          <p>Tools that explain how pages are found, supported, connected, and performing in search.</p>
-        </div>
-        <div class="tool-grid">
-          <a class="tool-card" href="https://search-intelligence.oceanliners.net/">
-            <span class="status"><i></i> Live</span><span class="tool-icon">SI</span>
-            <h3>Search Intelligence</h3>
-            <p>Google Search Console intelligence, page and query dossiers, URL inspection, Watchtower history, outcomes, and intervention learning.</p>
-            <span class="launch">Open Search Intelligence →</span>
-          </a>
-          <a class="tool-card" href="https://link-map.oceanliners.net/">
-            <span class="status"><i></i> Live</span><span class="tool-icon">LM</span>
-            <h3>Link Map</h3>
-            <p>Visualizes the internal-link graph so weakly supported pages, clusters, orphan risk, and linking opportunities are easier to see.</p>
-            <span class="launch">Open Link Map →</span>
-          </a>
-          <a class="tool-card" href="https://curator-indexer.oceanliners.net/">
-            <span class="status"><i></i> Live</span><span class="tool-icon">IX</span>
-            <h3>Curator Indexer</h3>
-            <p>Site and content indexing utilities that help CuratorOS understand coverage, page inventory, and structured project data.</p>
-            <span class="launch">Open Curator Indexer →</span>
-          </a>
-        </div>
-      </section>
-
-      <section class="tool-section">
-        <div class="section-heading">
-          <div><p class="eyebrow">Publishing</p><h2>Build, validate & publish</h2></div>
-          <p>The editing and publishing surface for turning CuratorOS decisions into carefully reviewed site changes.</p>
-        </div>
-        <div class="tool-grid single">
-          <a class="tool-card" href="https://page-studio.oceanliners.net/">
-            <span class="status"><i></i> Live</span><span class="tool-icon">PS</span>
-            <h3>Page Studio</h3>
-            <p>Edit, validate, review, and prepare Ocean Liner Curator pages for publication through the project’s GitHub-backed workflow.</p>
-            <span class="launch">Open Page Studio →</span>
-          </a>
-        </div>
-      </section>
-
-      <section class="workflow" aria-labelledby="workflow-title">
-        <p class="eyebrow">How the suite fits together</p>
-        <h2 id="workflow-title">Focused tools. One CuratorOS workflow.</h2>
-        <div class="workflow-line" aria-label="CuratorOS workflow">
-          <span>Scan</span><b>→</b><span>Explain</span><b>→</b><span>Locate</span><b>→</b><span>Recommend</span><b>→</b><span>Repair</span><b>→</b><span>Publish</span><b>→</b><span>Verify</span>
-        </div>
-        <p>Each tool does one job well. CuratorOS remains the place where evidence, findings, knowledge, decisions, and publication workflows come together.</p>
       </section>
     </main>
 
     <footer>
-      <span>CuratorOS Tool Suite · Ocean Liner Curator</span>
+      <span>Curator Intelligence · CuratorOS · Ocean Liner Curator</span>
       <span><a href="https://oceanliners.net/">oceanliners.net</a> · <a href="https://curator.oceanliners.net/">CuratorOS</a></span>
     </footer>
   </div>
