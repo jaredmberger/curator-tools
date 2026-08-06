@@ -8,8 +8,16 @@
   <title>Curator Intelligence | CuratorOS</title>
   <link rel="canonical" href="https://tools.oceanliners.net/">
   <link rel="stylesheet" href="./styles.css?v=20260805-2">
-  <script src="./adapter-bridge.js?v=20260806-5" defer></script>
-  <script src="./app.js?v=20260806-8" defer></script>
+  <script>
+    window.__CURATOR_ADAPTERS__ = {};
+    window.__curatorSiteHealth = function(payload){ window.__CURATOR_ADAPTERS__['site-health'] = payload; };
+    window.__curatorSearchIntelligence = function(payload){ window.__CURATOR_ADAPTERS__['search-intelligence'] = payload; };
+    window.__curatorIntegrity = function(payload){ window.__CURATOR_ADAPTERS__['integrity'] = payload; };
+  </script>
+  <script src="https://site-health.oceanliners.net/api/curator-intelligence?callback=__curatorSiteHealth"></script>
+  <script src="https://search-intelligence.oceanliners.net/api/curator-intelligence?callback=__curatorSearchIntelligence"></script>
+  <script src="https://integrity.oceanliners.net/api/curator-intelligence?callback=__curatorIntegrity"></script>
+  <script src="./app.js?v=20260806-9" defer></script>
 </head>
 <body>
   <div class="page-shell">
