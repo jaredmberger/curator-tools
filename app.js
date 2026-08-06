@@ -84,11 +84,18 @@ function renderPriorities(priorities = []) {
       <div>
         <h3>${escapeHtml(item.title)}</h3>
         <p>${escapeHtml(item.summary || '')}</p>
+        ${item.decision ? `
+          <p><strong>Recommended:</strong> ${escapeHtml(item.decision.action)}</p>
+          <p><strong>Why:</strong> ${escapeHtml(item.decision.rationale)}</p>
+          <p><strong>Verify:</strong> ${escapeHtml(item.decision.verification)}</p>
+        ` : ''}
         <div class="priority-meta">
           ${(item.sources || []).map(source => `<span class="chip">${escapeHtml(source)}</span>`).join('')}
           ${item.entity ? `<span class="chip">${escapeHtml(item.entity)}</span>` : ''}
           ${item.query ? `<span class="chip">${escapeHtml(item.query)}</span>` : ''}
           ${item.correlated ? '<span class="chip">Correlated</span>' : ''}
+          ${item.decision?.confidence ? `<span class="chip">${escapeHtml(item.decision.confidence)} confidence</span>` : ''}
+          ${item.decision?.targetUrl ? `<a class="chip" href="${escapeHtml(item.decision.targetUrl)}">Open action target →</a>` : ''}
         </div>
       </div>
       <span class="severity ${escapeHtml(item.severity || 'low')}">${escapeHtml(item.severity || 'low')} priority</span>
@@ -258,7 +265,6 @@ function integritySeverity(page) {
 }
 
 function buildConclusion(signal, health, integrity, graph) {
-  const entity = normalizeEntity(signal.entity);
   const baseScore = Math.max(40, Number(signal.score || 60));
   const decline = isSearchDecline(signal);
   const technical = hasTechnicalBlocker(health);
@@ -306,6 +312,73 @@ function buildConclusion(signal, health, integrity, graph) {
   };
 }
 
+function decisionConfidence(conclusion, evidence) {
+  const independentSources = new Set(conclusion.sources || []).size;
+  if (conclusion.conclusionType === 'monitor') {
+    const negativeChecks = [evidence.health, evidence.integrity, evidence.graph].filter(Boolean).length;
+    return negativeChecks >= 3 ? 'High' : negativeChecks >= 2 ? 'Medium' : 'Low';
+  }
+  if (independentSources >= 3) return 'High';
+  if (independentSources === 2) return 'High';
+  return 'Medium';
+}
+
+function buildDecision(conclusion, evidence) {
+  const confidence = decisionConfidence(conclusion, evidence);
+  const path = normalizeEntity(conclusion.entity);
+  const encodedPage = encodeURIComponent(`https://oceanliners.net${path}`);
+
+  if (conclusion.conclusionType === 'technical-first') {
+    return {
+      action: `Fix the verified technical issue on ${path} before changing content or links.`,
+      rationale: `Search Intelligence and Site Health agree on the same page, and technical accessibility/canonical/indexability problems outrank secondary optimization work.`,
+      confidence,
+      targetTool: 'Site Health',
+      targetUrl: `https://site-health.oceanliners.net/?url=${encodedPage}`,
+      verification: 'Re-check Site Health after the fix, then watch the next 2–3 Search Intelligence snapshots for recovery or stabilization.',
+      successCriteria: 'Technical blocker cleared; page remains indexable/canonical; subsequent Watchtower snapshots stabilize or improve.',
+    };
+  }
+
+  if (conclusion.conclusionType === 'integrity-first') {
+    return {
+      action: `Review and resolve the active Curator Integrity findings on ${path} before broader editorial changes.`,
+      rationale: `Site Health shows no technical blocker, while Integrity identifies concrete standards issues on the same search-signaled page.`,
+      confidence,
+      targetTool: 'Curator Integrity',
+      targetUrl: `https://integrity.oceanliners.net/?url=${encodedPage}`,
+      verification: 'Re-run the bounded Integrity check after changes, then compare the next 2–3 Watchtower snapshots.',
+      successCriteria: 'Relevant Integrity findings cleared without introducing technical regressions; search signal stabilizes or improves.',
+    };
+  }
+
+  if (conclusion.conclusionType === 'links-first') {
+    return {
+      action: `Strengthen appropriate internal-link support for ${path}.`,
+      rationale: `No technical or Integrity blocker was found; Link Map is the strongest actionable evidence currently associated with the search signal.`,
+      confidence,
+      targetTool: 'Link Map',
+      targetUrl: 'https://link-map.oceanliners.net/',
+      verification: 'Confirm inbound-link support increased in Link Map, then watch the next 2–3 Search Intelligence snapshots before making additional page changes.',
+      successCriteria: 'Inbound support improves and the Watchtower trend stabilizes or improves without unnecessary content rewrites.',
+    };
+  }
+
+  return {
+    action: `Monitor ${path}; do not change the page solely because of the current search movement.`,
+    rationale: `The Search Intelligence signal is real, but available technical, Integrity, and link evidence does not identify a corroborating site-side cause.`,
+    confidence,
+    targetTool: 'Search Intelligence',
+    targetUrl: 'https://search-intelligence.oceanliners.net/',
+    verification: 'Wait for the next Watchtower snapshot and reassess only if the signal persists, worsens, or gains corroborating evidence.',
+    successCriteria: 'A later snapshot either normalizes the movement or provides enough repeated evidence to justify intervention.',
+  };
+}
+
+function applyDecision(conclusion, evidence) {
+  return { ...conclusion, decision: buildDecision(conclusion, evidence) };
+}
+
 async function correlateSignalsV2(data, payloads) {
   const search = payloads.get('search-intelligence');
   if (!search?.ok) return 0;
@@ -313,16 +386,19 @@ async function correlateSignalsV2(data, payloads) {
   if (!signals.length) return 0;
 
   const detailedIntegrity = await fetchDetailedIntegrity(signals);
-  if (detailedIntegrity?.system) {
-    payloads.set('integrity-detail', detailedIntegrity);
-  }
+  if (detailedIntegrity?.system) payloads.set('integrity-detail', detailedIntegrity);
 
   const healthByPath = healthMapFromSearch(search);
   const integrityByPath = integrityMap(detailedIntegrity);
   const graphByPath = graphMap(payloads.get('link-map'));
   const conclusions = signals.map(signal => {
     const entity = normalizeEntity(signal.entity);
-    return buildConclusion(signal, healthByPath.get(entity), integrityByPath.get(entity), graphByPath.get(entity));
+    const evidence = {
+      health: healthByPath.get(entity),
+      integrity: integrityByPath.get(entity),
+      graph: graphByPath.get(entity),
+    };
+    return applyDecision(buildConclusion(signal, evidence.health, evidence.integrity, evidence.graph), evidence);
   });
   const correlatedEntities = new Set(conclusions.map(item => normalizeEntity(item.entity)));
 
@@ -341,9 +417,14 @@ async function correlateSignalsV2(data, payloads) {
 
   const actionable = conclusions.filter(item => item.conclusionType !== 'monitor').length;
   const monitored = conclusions.length - actionable;
+  const highConfidence = conclusions.filter(item => item.decision?.confidence === 'High').length;
   data.activity = mergeUnique(
     Array.isArray(data.activity) ? data.activity : [],
     [{
+      title: 'Decision Engine v1 completed',
+      summary: `${conclusions.length} correlated conclusion${conclusions.length === 1 ? '' : 's'} converted into explicit next-step decisions; ${actionable} actionable, ${monitored} monitor-only, and ${highConfidence} high-confidence.`,
+      meta: 'Curator Intelligence · Decision Engine v1',
+    }, {
       title: 'Correlation Engine v2 completed',
       summary: `${conclusions.length} search-signaled page${conclusions.length === 1 ? '' : 's'} evaluated across technical health, Integrity standards, and internal-link support; ${actionable} actionable and ${monitored} monitor-only conclusion${monitored === 1 ? '' : 's'}.`,
       meta: 'Curator Intelligence · Correlation Engine v2',
@@ -384,20 +465,22 @@ async function mergeLiveAdapters(data) {
   const liveReporting = (data.systems || []).filter(system => system.live).length;
   const priorities = Array.isArray(data.priorities) ? data.priorities : [];
   const criticalFailures = priorities.filter(item => item.severity === 'critical').length;
+  const decisions = priorities.filter(item => item.decision);
   data.summary = {
     ...(data.summary || {}),
     activeFindings: priorities.length,
     priorityActions: priorities.filter(item => ['high', 'critical'].includes(item.severity)).length,
     toolsReporting: liveReporting,
     criticalFailures,
+    decisions: decisions.length,
   };
   data.generatedAt = latestTimestamp;
 
   if (connectedCount > 0) {
     data.overall = {
-      label: correlatedCount ? 'Cross-tool intelligence active' : priorities.length ? 'Intelligence active' : 'Intelligence layer online',
+      label: correlatedCount ? 'Decision intelligence active' : priorities.length ? 'Intelligence active' : 'Intelligence layer online',
       summary: correlatedCount
-        ? `${connectedCount} live specialist adapters are reporting. Correlation Engine v2 produced ${correlatedCount} page-level conclusion${correlatedCount === 1 ? '' : 's'} from the current Search Intelligence signals.`
+        ? `${connectedCount} live specialist adapters are reporting. Correlation Engine v2 produced ${correlatedCount} page-level conclusion${correlatedCount === 1 ? '' : 's'}, and Decision Engine v1 assigned an explicit next action to each.`
         : priorities.length
           ? `${connectedCount} live specialist adapters are reporting with ${priorities.length} normalized intelligence signal${priorities.length === 1 ? '' : 's'}.`
           : `${connectedCount} live specialist adapter${connectedCount === 1 ? ' is' : 's are'} reporting.`,
