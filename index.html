@@ -17,7 +17,33 @@
   <script src="https://site-health.oceanliners.net/api/curator-intelligence?callback=__curatorSiteHealth"></script>
   <script src="https://search-intelligence.oceanliners.net/api/curator-intelligence?callback=__curatorSearchIntelligence"></script>
   <script src="https://integrity.oceanliners.net/api/curator-intelligence?callback=__curatorIntegrity"></script>
-  <script src="./app.js?v=20260806-9" defer></script>
+  <script>
+    (function(){
+      const nativeFetch = window.fetch.bind(window);
+      const ids = new Map([
+        ['site-health.oceanliners.net','site-health'],
+        ['search-intelligence.oceanliners.net','search-intelligence'],
+        ['integrity.oceanliners.net','integrity']
+      ]);
+      window.fetch = async function(input, init){
+        let url;
+        try { url = new URL(typeof input === 'string' ? input : input.url, window.location.href); }
+        catch { return nativeFetch(input, init); }
+        const id = ids.get(url.hostname);
+        if (id && url.pathname === '/api/curator-intelligence') {
+          const payload = window.__CURATOR_ADAPTERS__ && window.__CURATOR_ADAPTERS__[id];
+          if (payload) {
+            return new Response(JSON.stringify(payload), {
+              status: 200,
+              headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }
+            });
+          }
+        }
+        return nativeFetch(input, init);
+      };
+    })();
+  </script>
+  <script src="./app.js?v=20260806-10" defer></script>
 </head>
 <body>
   <div class="page-shell">
