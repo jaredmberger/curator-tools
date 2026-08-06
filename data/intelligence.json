@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-05T23:00:00Z",
+  "overall": {
+    "status": "good",
+    "label": "Intelligence framework online",
+    "summary": "The unified intelligence layer is active. Specialist tool adapters are the next integration phase."
+  },
+  "summary": {
+    "activeFindings": 0,
+    "priorityActions": 0,
+    "toolsReporting": 0,
+    "criticalFailures": 0
+  },
+  "systems": [
+    {
+      "id": "site-health",
+      "name": "Site Health",
+      "status": "info",
+      "statusLabel": "Adapter pending",
+      "value": "Ready",
+      "summary": "Technical health signals will report status codes, canonical issues, indexability, and structural findings here.",
+      "detail": "Awaiting normalized feed",
+      "url": "https://site-health.oceanliners.net/"
+    },
+    {
+      "id": "search-intelligence",
+      "name": "Search Intelligence",
+      "status": "info",
+      "statusLabel": "Adapter pending",
+      "value": "Ready",
+      "summary": "Search performance, query movement, Watchtower observations, and intervention outcomes will report here.",
+      "detail": "Awaiting normalized feed",
+      "url": "https://search-intelligence.oceanliners.net/"
+    },
+    {
+      "id": "link-map",
+      "name": "Link Map",
+      "status": "info",
+      "statusLabel": "Adapter pending",
+      "value": "Ready",
+      "summary": "Cluster strength, internal-link support, orphan risk, and linking opportunities will report here.",
+      "detail": "Awaiting normalized feed",
+      "url": "https://link-map.oceanliners.net/"
+    },
+    {
+      "id": "integrity",
+      "name": "Curator Integrity",
+      "status": "info",
+      "statusLabel": "Adapter pending",
+      "value": "Ready",
+      "summary": "Standards, accessibility, metadata, structure, and editorial conformity signals will report here.",
+      "detail": "Awaiting normalized feed",
+      "url": "https://integrity.oceanliners.net/"
+    },
+    {
+      "id": "speed",
+      "name": "Curator Speed",
+      "status": "info",
+      "statusLabel": "Adapter pending",
+      "value": "Ready",
+      "summary": "Performance findings and high-friction pages or assets will report here.",
+      "detail": "Awaiting normalized feed",
+      "url": "https://speed.oceanliners.net/"
+    },
+    {
+      "id": "indexer",
+      "name": "Curator Indexer",
+      "status": "info",
+      "statusLabel": "Adapter pending",
+      "value": "Ready",
+      "summary": "Page inventory, coverage, classification, and structured content intelligence will report here.",
+      "detail": "Awaiting normalized feed",
+      "url": "https://curator-indexer.oceanliners.net/"
+    }
+  ],
+  "priorities": [],
+  "opportunities": [
+    {
+      "title": "Connect the first specialist feed",
+      "summary": "Site Health is a strong first adapter because its findings can establish the normalization pattern for every other CuratorOS tool.",
+      "meta": "Integration phase 1"
+    },
+    {
+      "title": "Add cross-tool entity correlation",
+      "summary": "Once two or more feeds report URL-level signals, Curator Intelligence can merge them into one page dossier and calculate meaningful priorities.",
+      "meta": "Integration phase 2"
+    }
+  ],
+  "activity": [
+    {
+      "title": "Curator Intelligence Center initialized",
+      "summary": "The former CuratorOS Tools launcher has been converted into a data-driven intelligence surface while preserving direct access to every specialist tool.",
+      "meta": "August 5, 2026"
+    },
+    {
+      "title": "Normalized intelligence schema established",
+      "summary": "Systems, priorities, opportunities, activity, and top-level status now share a common contract that live adapters can populate.",
+      "meta": "Schema v1"
+    }
+  ]
+}
