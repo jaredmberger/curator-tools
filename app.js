@@ -89,12 +89,16 @@ function renderPriorities(priorities = []) {
           <p><strong>Why:</strong> ${escapeHtml(item.decision.rationale)}</p>
           <p><strong>Verify:</strong> ${escapeHtml(item.decision.verification)}</p>
         ` : ''}
+        ${item.verification ? `
+          <p><strong>Current trajectory:</strong> ${escapeHtml(item.verification.label)} — ${escapeHtml(item.verification.summary)}</p>
+        ` : ''}
         <div class="priority-meta">
           ${(item.sources || []).map(source => `<span class="chip">${escapeHtml(source)}</span>`).join('')}
           ${item.entity ? `<span class="chip">${escapeHtml(item.entity)}</span>` : ''}
           ${item.query ? `<span class="chip">${escapeHtml(item.query)}</span>` : ''}
           ${item.correlated ? '<span class="chip">Correlated</span>' : ''}
           ${item.decision?.confidence ? `<span class="chip">${escapeHtml(item.decision.confidence)} confidence</span>` : ''}
+          ${item.verification?.label ? `<span class="chip">${escapeHtml(item.verification.label)}</span>` : ''}
           ${item.decision?.targetUrl ? `<a class="chip" href="${escapeHtml(item.decision.targetUrl)}">Open action target →</a>` : ''}
         </div>
       </div>
@@ -232,6 +236,55 @@ function integrityMap(payload) {
 
 function graphMap(payload) {
   return new Map((payload?.pages || []).map(page => [normalizeEntity(page.path), page]));
+}
+
+function verificationMap(search) {
+  return new Map((search?.verificationContext?.pages || []).map(page => [normalizeEntity(page.path), page]));
+}
+
+function percentChange(from, to) {
+  const a = Number(from || 0);
+  const b = Number(to || 0);
+  if (!a) return b ? 100 : 0;
+  return ((b - a) / Math.abs(a)) * 100;
+}
+
+function classifyVerification(history) {
+  const points = [...(history?.points || [])].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  if (points.length < 3) {
+    return {
+      status: 'too-early',
+      label: 'Too early to tell',
+      pointCount: points.length,
+      summary: `${points.length} Watchtower snapshot${points.length === 1 ? '' : 's'} available; at least 3 are required for a trajectory assessment.`,
+      attribution: false,
+    };
+  }
+
+  const first = points[0];
+  const latest = points[points.length - 1];
+  const positionGain = Number(first.position || 0) - Number(latest.position || 0);
+  const clicksPct = percentChange(first.clicks, latest.clicks);
+  const impressionsPct = percentChange(first.impressions, latest.impressions);
+  let score = 0;
+
+  if (positionGain >= 2) score += 2;
+  else if (positionGain <= -2) score -= 2;
+  if (clicksPct >= 15) score += 1;
+  else if (clicksPct <= -15) score -= 1;
+  if (impressionsPct >= 20) score += 1;
+  else if (impressionsPct <= -20) score -= 1;
+
+  const positionText = Math.abs(positionGain) < 0.1
+    ? 'average position is essentially unchanged'
+    : positionGain > 0
+      ? `average position improved ${positionGain.toFixed(1)} places`
+      : `average position worsened ${Math.abs(positionGain).toFixed(1)} places`;
+  const metricText = `clicks ${clicksPct >= 0 ? 'rose' : 'fell'} ${Math.abs(clicksPct).toFixed(0)}% and impressions ${impressionsPct >= 0 ? 'rose' : 'fell'} ${Math.abs(impressionsPct).toFixed(0)}% across ${points.length} snapshots`;
+
+  if (score >= 2) return { status: 'improving', label: 'Improving', pointCount: points.length, summary: `${positionText}; ${metricText}.`, attribution: false };
+  if (score <= -2) return { status: 'worsening', label: 'Worsening', pointCount: points.length, summary: `${positionText}; ${metricText}.`, attribution: false };
+  return { status: 'stable', label: 'Stable', pointCount: points.length, summary: `${positionText}; supporting traffic signals are mixed or within the stability threshold across ${points.length} snapshots.`, attribution: false };
 }
 
 function hasTechnicalBlocker(health) {
@@ -391,6 +444,7 @@ async function correlateSignalsV2(data, payloads) {
   const healthByPath = healthMapFromSearch(search);
   const integrityByPath = integrityMap(detailedIntegrity);
   const graphByPath = graphMap(payloads.get('link-map'));
+  const verificationByPath = verificationMap(search);
   const conclusions = signals.map(signal => {
     const entity = normalizeEntity(signal.entity);
     const evidence = {
@@ -398,7 +452,10 @@ async function correlateSignalsV2(data, payloads) {
       integrity: integrityByPath.get(entity),
       graph: graphByPath.get(entity),
     };
-    return applyDecision(buildConclusion(signal, evidence.health, evidence.integrity, evidence.graph), evidence);
+    return {
+      ...applyDecision(buildConclusion(signal, evidence.health, evidence.integrity, evidence.graph), evidence),
+      verification: classifyVerification(verificationByPath.get(entity)),
+    };
   });
   const correlatedEntities = new Set(conclusions.map(item => normalizeEntity(item.entity)));
 
@@ -418,9 +475,19 @@ async function correlateSignalsV2(data, payloads) {
   const actionable = conclusions.filter(item => item.conclusionType !== 'monitor').length;
   const monitored = conclusions.length - actionable;
   const highConfidence = conclusions.filter(item => item.decision?.confidence === 'High').length;
+  const verificationCounts = conclusions.reduce((acc, item) => {
+    const key = item.verification?.status || 'too-early';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+
   data.activity = mergeUnique(
     Array.isArray(data.activity) ? data.activity : [],
     [{
+      title: 'Verification Engine v1 completed',
+      summary: `${conclusions.length} decision${conclusions.length === 1 ? '' : 's'} checked against bounded Watchtower history: ${verificationCounts.improving || 0} improving, ${verificationCounts.stable || 0} stable, ${verificationCounts.worsening || 0} worsening, ${verificationCounts['too-early'] || 0} too early to tell. Trajectory is not treated as causal attribution.`,
+      meta: 'Curator Intelligence · Verification Engine v1',
+    }, {
       title: 'Decision Engine v1 completed',
       summary: `${conclusions.length} correlated conclusion${conclusions.length === 1 ? '' : 's'} converted into explicit next-step decisions; ${actionable} actionable, ${monitored} monitor-only, and ${highConfidence} high-confidence.`,
       meta: 'Curator Intelligence · Decision Engine v1',
@@ -466,6 +533,7 @@ async function mergeLiveAdapters(data) {
   const priorities = Array.isArray(data.priorities) ? data.priorities : [];
   const criticalFailures = priorities.filter(item => item.severity === 'critical').length;
   const decisions = priorities.filter(item => item.decision);
+  const verifications = priorities.filter(item => item.verification);
   data.summary = {
     ...(data.summary || {}),
     activeFindings: priorities.length,
@@ -473,14 +541,15 @@ async function mergeLiveAdapters(data) {
     toolsReporting: liveReporting,
     criticalFailures,
     decisions: decisions.length,
+    verifications: verifications.length,
   };
   data.generatedAt = latestTimestamp;
 
   if (connectedCount > 0) {
     data.overall = {
-      label: correlatedCount ? 'Decision intelligence active' : priorities.length ? 'Intelligence active' : 'Intelligence layer online',
+      label: correlatedCount ? 'Verification intelligence active' : priorities.length ? 'Intelligence active' : 'Intelligence layer online',
       summary: correlatedCount
-        ? `${connectedCount} live specialist adapters are reporting. Correlation Engine v2 produced ${correlatedCount} page-level conclusion${correlatedCount === 1 ? '' : 's'}, and Decision Engine v1 assigned an explicit next action to each.`
+        ? `${connectedCount} live specialist adapters are reporting. Correlation Engine v2 produced ${correlatedCount} page-level conclusion${correlatedCount === 1 ? '' : 's'}, Decision Engine v1 assigned the next actions, and Verification Engine v1 assessed the available Watchtower trajectory for each.`
         : priorities.length
           ? `${connectedCount} live specialist adapters are reporting with ${priorities.length} normalized intelligence signal${priorities.length === 1 ? '' : 's'}.`
           : `${connectedCount} live specialist adapter${connectedCount === 1 ? ' is' : 's are'} reporting.`,
