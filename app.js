@@ -1,29 +1,321 @@
-const INTELLIGENCE_ENDPOINT='./data/intelligence.json';
-const ADAPTERS={
-  siteHealth:{id:'site-health',endpoint:'https://site-health.oceanliners.net/api/curator-intelligence',transport:'script'},
-  search:{id:'search-intelligence',endpoint:'https://search-intelligence.oceanliners.net/api/curator-intelligence',transport:'script'},
-  linkMap:{id:'link-map',endpoint:'https://link-map.oceanliners.net/api/curator-intelligence',transport:'fetch'},
-  integrity:{id:'integrity',endpoint:'https://integrity.oceanliners.net/api/curator-intelligence',transport:'script'},
+const INTELLIGENCE_ENDPOINT = './data/intelligence.json';
+
+const LIVE_ADAPTERS = [
+  {
+    id: 'site-health',
+    endpoint: 'https://site-health.oceanliners.net/api/curator-intelligence',
+  },
+  {
+    id: 'search-intelligence',
+    endpoint: 'https://search-intelligence.oceanliners.net/api/curator-intelligence',
+  },
+  {
+    id: 'link-map',
+    endpoint: 'https://link-map.oceanliners.net/api/curator-intelligence',
+  },
+];
+
+const escapeHtml = (value = '') => String(value)
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#039;');
+
+const formatSnapshot = (value) => {
+  if (!value) return 'Snapshot time unavailable';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Snapshot time unavailable';
+  return `Snapshot ${date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`;
 };
-let callbackSeq=0;
-const escapeHtml=(value='')=>String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
-const normalizeEntity=(value='')=>{if(!value)return'';try{const url=new URL(String(value),'https://oceanliners.net');let path=url.pathname||'/';path=path.replace(/\/index\.html?$/i,'/').replace(/\.html?$/i,'');if(path.length>1)path=path.replace(/\/$/,'');return path.toLowerCase()}catch{let path=String(value).trim();if(!path.startsWith('/'))path=`/${path}`;path=path.replace(/\.html?$/i,'');if(path.length>1)path=path.replace(/\/$/,'');return path.toLowerCase()}};
-function formatSnapshot(value){if(!value)return'Snapshot time unavailable';const date=new Date(value);return Number.isNaN(date.getTime())?'Snapshot time unavailable':`Snapshot ${date.toLocaleString([],{dateStyle:'medium',timeStyle:'short'})}`}
-function renderMetrics(data){document.querySelector('#metric-findings').textContent=data.summary?.activeFindings??0;document.querySelector('#metric-priorities').textContent=data.summary?.priorityActions??0;document.querySelector('#metric-tools').textContent=data.summary?.toolsReporting??0;document.querySelector('#metric-critical').textContent=data.summary?.criticalFailures??0;document.querySelector('#overall-status').textContent=data.overall?.label||'System status unavailable';document.querySelector('#overall-summary').textContent=data.overall?.summary||'No system summary is available.';document.querySelector('#snapshot-time').textContent=formatSnapshot(data.generatedAt)}
-function renderSystems(systems=[]){const target=document.querySelector('#system-grid');if(!systems.length){target.innerHTML='<div class="empty-state">No specialist tools are reporting into Curator Intelligence yet.</div>';return}target.innerHTML=systems.map(system=>`<article class="system-card"><header><h3>${escapeHtml(system.name)}</h3><span class="badge ${escapeHtml(system.status||'info')}">${escapeHtml(system.statusLabel||system.status||'Unknown')}</span></header><strong class="system-value">${escapeHtml(system.value??'—')}</strong><p>${escapeHtml(system.summary||'')}</p><footer><span>${escapeHtml(system.detail||'')}</span>${system.url?`<a href="${escapeHtml(system.url)}">Open →</a>`:''}</footer></article>`).join('')}
-function renderPriorities(priorities=[]){const target=document.querySelector('#priority-list');if(!priorities.length){target.innerHTML='<div class="empty-state">No prioritized cross-tool findings are active.</div>';return}target.innerHTML=priorities.map((item,index)=>`<article class="priority-card"><span class="priority-rank">${index+1}</span><div><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.summary||'')}</p>${item.action?`<p><strong>Recommended sequence:</strong> ${escapeHtml(item.action)}</p>`:''}<div class="priority-meta">${(item.sources||[]).map(source=>`<span class="chip">${escapeHtml(source)}</span>`).join('')}${item.entity?`<span class="chip">${escapeHtml(item.entity)}</span>`:''}${item.query?`<span class="chip">${escapeHtml(item.query)}</span>`:''}${item.correlated?'<span class="chip">Correlated</span>':''}${item.sourceCount>2?`<span class="chip">${item.sourceCount}-source</span>`:''}</div></div><span class="severity ${escapeHtml(item.severity||'low')}">${escapeHtml(item.severity||'low')} priority</span></article>`).join('')}
-function renderStack(selector,items=[],emptyMessage){const target=document.querySelector(selector);if(!items.length){target.innerHTML=`<div class="empty-state">${escapeHtml(emptyMessage)}</div>`;return}target.innerHTML=items.map(item=>`<article class="stack-item"><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.summary||'')}</p>${item.meta?`<small>${escapeHtml(item.meta)}</small>`:''}</article>`).join('')}
-function render(data){renderMetrics(data);renderSystems(data.systems);renderPriorities(data.priorities);renderStack('#opportunity-list',data.opportunities,'No opportunities have been promoted into the intelligence layer yet.');renderStack('#activity-list',data.activity,'No recent intelligence events are available.')}
-function mergeSystem(data,system){if(!system?.id)return;const systems=Array.isArray(data.systems)?[...data.systems]:[];const index=systems.findIndex(item=>item.id===system.id);if(index>=0)systems[index]={...systems[index],...system,live:true};else systems.push({...system,live:true});data.systems=systems}
-function mergeUnique(base=[],incoming=[],keyFn){const seen=new Set();return[...incoming,...base].filter(item=>{const key=keyFn(item);if(seen.has(key))return false;seen.add(key);return true})}
-function mergeAdapterPayload(data,payload){mergeSystem(data,payload.system);data.priorities=mergeUnique(data.priorities||[],payload.priorities||[],item=>`${item.title||''}|${item.entity||''}|${item.query||''}`).sort((a,b)=>Number(b.score||0)-Number(a.score||0));data.opportunities=mergeUnique(data.opportunities||[],payload.opportunities||[],item=>`${item.title||''}|${item.entity||''}|${item.query||''}`);data.activity=mergeUnique(data.activity||[],[...(payload.activity||[]),{title:`${payload.system.name} reporting live`,summary:payload.system.summary,meta:'Live adapter · Curator Intelligence'}],item=>`${item.title||''}|${item.meta||''}`)}
-function healthProblem(health){return Boolean(health)&&(health.ok===false||health.canonicalOk===false||health.indexable===false||(health.httpStatus&&health.httpStatus>=400)||(health.issues||[]).length>0)}
-function integrityProblem(row){return Boolean(row)&&(row.ok===false||Number(row.findingCount||0)>0||(row.findings||[]).length>0)}
-function integritySeverity(row){const findings=row?.findings||[];if(findings.some(f=>['error','critical'].includes(f.severity)))return'high';if(findings.some(f=>f.severity==='warning'))return'medium';return'low'}
-function correlateSignals(data,payloads){const search=payloads.get('search-intelligence'),linkMap=payloads.get('link-map'),integrityPayload=payloads.get('integrity');if(!search?.ok||!linkMap?.ok)return;const graphByPath=new Map((linkMap.pages||[]).map(page=>[normalizeEntity(page.path),page]));const healthByPath=new Map((search.technicalContext?.pages||[]).map(page=>[normalizeEntity(page.path),page]));const integrityByPath=new Map((integrityPayload?.pages||[]).map(page=>[normalizeEntity(page.path),page]));const searchSignals=[...(search.priorities||[]),...(search.opportunities||[])];const correlated=[];const seen=new Set();for(const signal of searchSignals){const entity=normalizeEntity(signal.entity);if(!entity||seen.has(entity))continue;const graph=graphByPath.get(entity),health=healthByPath.get(entity)||signal.siteHealth||null,integrity=integrityByPath.get(entity)||null;const inbound=Number(graph?.inboundCount||0),weakSupport=Boolean(graph)&&(graph.orphan||inbound<=1),technicalProblem=healthProblem(health),standardsProblem=integrityProblem(integrity);if(!weakSupport&&!technicalProblem&&!standardsProblem)continue;seen.add(entity);const sources=['Search Intelligence'];if(technicalProblem)sources.push('Site Health');if(standardsProblem)sources.push('Curator Integrity');if(weakSupport)sources.push('Link Map');let severity=signal.severity||(Number(signal.score||0)>=85?'high':'medium');let title='Search signal requires cross-tool review';const details=[];const steps=[];if(technicalProblem){severity='high';title='Search signal coincides with a technical blocker';const issues=(health.issues||[]).join(' ')||`HTTP ${health.httpStatus||'status'} / canonical-indexability warning`;details.push(`Site Health reports: ${issues}.`);steps.push('Fix the Site Health issue','Recheck the page')}if(standardsProblem){const findings=integrity.findings||[];const labels=findings.slice(0,3).map(f=>f.label||f.rule).filter(Boolean);details.push(`Curator Integrity reports ${Number(integrity.findingCount||findings.length)} active finding${Number(integrity.findingCount||findings.length)===1?'':'s'}${labels.length?`: ${labels.join(', ')}`:''}.`);if(!technicalProblem){title=weakSupport?'Search signal coincides with standards and internal-link issues':'Search signal coincides with an Integrity standards issue';if(integritySeverity(integrity)==='high')severity='high'}steps.push('Resolve the Curator Integrity findings')}if(weakSupport){details.push(graph.orphan?'Link Map shows no inbound internal links.':`Link Map shows only ${inbound} inbound internal link${inbound===1?'':'s'}.`);if((graph.suggestions||[]).length)details.push(`${graph.suggestions.length} candidate source page${graph.suggestions.length===1?' is':'s are'} available.`);if(!technicalProblem&&!standardsProblem)title=(signal.title||'').toLowerCase().match(/decline|drop/)?'Search decline coincides with weak internal-link support':'Search opportunity coincides with weak internal-link support';steps.push('Strengthen relevant internal links','Recheck Link Map')}steps.push('Monitor Search Intelligence for response');correlated.push({title,summary:`${signal.entity} is showing a Search Intelligence signal. ${details.join(' ')}`,action:steps.map((step,i)=>`${i+1}) ${step}`).join(' '),severity,entity:signal.entity,query:signal.query||'',score:Math.min(100,Number(signal.score||70)+(technicalProblem?15:0)+(standardsProblem?(integritySeverity(integrity)==='high'?14:9):0)+(weakSupport?(graph?.orphan?12:8):0)),sources,sourceCount:sources.length,correlated:true})}if(!correlated.length)return;data.priorities=mergeUnique(data.priorities||[],correlated,item=>`${item.title||''}|${item.entity||''}|${item.query||''}`).sort((a,b)=>Number(b.score||0)-Number(a.score||0));const maxSources=Math.max(...correlated.map(item=>item.sourceCount||0));data.activity=mergeUnique(data.activity||[],[{title:'Multi-source correlation completed',summary:`${correlated.length} page${correlated.length===1?'':'s'} produced ordered recommendations using up to ${maxSources} specialist sources.`,meta:'Curator Intelligence · Search + Health + Integrity + Links'}],item=>`${item.title||''}|${item.meta||''}`)}
-function loadScriptAdapter(adapter,extraParams={}){return new Promise((resolve,reject)=>{const callbackName=`__curator_${adapter.id.replace(/[^a-z0-9]/gi,'_')}_${Date.now()}_${++callbackSeq}`;const script=document.createElement('script');let settled=false;const timeout=setTimeout(()=>finish(new Error(`${adapter.id} adapter timed out`)),20000);function finish(error,payload){if(settled)return;settled=true;clearTimeout(timeout);try{delete window[callbackName]}catch{window[callbackName]=undefined}script.remove();if(error)reject(error);else resolve(payload)}window[callbackName]=payload=>{if(!payload?.ok||!payload?.system)return finish(new Error(payload?.error||`${adapter.id} returned an invalid intelligence signal`));finish(null,payload)};script.onerror=()=>finish(new Error(`${adapter.id} adapter script failed to load`));const url=new URL(adapter.endpoint);for(const [key,value] of Object.entries(extraParams)){if(Array.isArray(value))for(const item of value)url.searchParams.append(key,item);else if(value!=null)url.searchParams.set(key,value)}url.searchParams.set('callback',callbackName);url.searchParams.set('t',Date.now());script.src=url.href;script.async=true;document.head.appendChild(script)})}
-async function loadFetchAdapter(adapter){const response=await fetch(`${adapter.endpoint}?t=${Date.now()}`,{cache:'no-store'});if(!response.ok)throw new Error(`${adapter.id} returned ${response.status}`);const payload=await response.json();if(!payload?.ok||!payload?.system)throw new Error(`${adapter.id} returned an invalid intelligence signal`);return payload}
-function searchSignalPages(search){const values=[...(search?.signalPages||[]),...(search?.priorities||[]).map(x=>x.entity),...(search?.opportunities||[]).map(x=>x.entity)];return[...new Set(values.map(normalizeEntity).filter(Boolean))].slice(0,10)}
-async function mergeLiveAdapters(data){const payloads=new Map();let latestTimestamp=data.generatedAt||null;const baseResults=await Promise.allSettled([loadScriptAdapter(ADAPTERS.siteHealth),loadScriptAdapter(ADAPTERS.search),loadFetchAdapter(ADAPTERS.linkMap)]);const baseAdapters=[ADAPTERS.siteHealth,ADAPTERS.search,ADAPTERS.linkMap];baseResults.forEach((result,index)=>{const adapter=baseAdapters[index];if(result.status==='fulfilled'){payloads.set(adapter.id,result.value);mergeAdapterPayload(data,result.value);if(result.value.generatedAt&&(!latestTimestamp||new Date(result.value.generatedAt)>new Date(latestTimestamp)))latestTimestamp=result.value.generatedAt}else console.warn(`[Curator Intelligence] ${adapter.id} unavailable`,result.reason)});const search=payloads.get('search-intelligence');try{const integrity=await loadScriptAdapter(ADAPTERS.integrity,{page:searchSignalPages(search)});payloads.set('integrity',integrity);mergeAdapterPayload(data,integrity);if(integrity.generatedAt&&(!latestTimestamp||new Date(integrity.generatedAt)>new Date(latestTimestamp)))latestTimestamp=integrity.generatedAt}catch(error){console.warn('[Curator Intelligence] integrity unavailable',error)}correlateSignals(data,payloads);const liveReporting=(data.systems||[]).filter(system=>system.live).length,priorities=data.priorities||[],criticalFailures=priorities.filter(item=>item.severity==='critical').length,correlated=priorities.filter(item=>item.correlated),maxSourceCount=correlated.length?Math.max(...correlated.map(item=>item.sourceCount||2)):0;data.summary={...(data.summary||{}),activeFindings:priorities.length,priorityActions:priorities.filter(item=>['high','critical'].includes(item.severity)).length,toolsReporting:liveReporting,criticalFailures};data.generatedAt=latestTimestamp;if(liveReporting>0)data.overall={label:maxSourceCount>=4?'Four-source intelligence active':maxSourceCount>=3?'Multi-source intelligence active':correlated.length?'Cross-tool intelligence active':priorities.length?'Intelligence active':'Intelligence layer online',summary:correlated.length?`${liveReporting} live specialist adapters are reporting. ${correlated.length} ordered cross-tool conclusion${correlated.length===1?' has':'s have'} been produced using up to ${maxSourceCount} sources.`:`${liveReporting} live specialist adapter${liveReporting===1?' is':'s are'} reporting.`};return data}
-async function loadIntelligence(){try{const response=await fetch(`${INTELLIGENCE_ENDPOINT}?t=${Date.now()}`,{cache:'no-store'});if(!response.ok)throw new Error(`Intelligence feed returned ${response.status}`);render(await mergeLiveAdapters(await response.json()))}catch(error){console.error('[Curator Intelligence]',error);document.querySelector('#overall-status').textContent='Intelligence feed unavailable';document.querySelector('#overall-summary').textContent='The dashboard shell is online, but its normalized intelligence feed could not be loaded.';document.querySelector('#snapshot-time').textContent='Check data/intelligence.json';renderSystems([]);renderPriorities([]);renderStack('#opportunity-list',[],'The opportunity feed is unavailable.');renderStack('#activity-list',[],'The activity feed is unavailable.')}}
-document.addEventListener('DOMContentLoaded',loadIntelligence);
+
+const normalizeEntity = (value = '') => {
+  if (!value) return '';
+  try {
+    const url = new URL(String(value), 'https://oceanliners.net');
+    let path = url.pathname || '/';
+    path = path.replace(/\/index\.html?$/i, '/').replace(/\.html?$/i, '');
+    if (path.length > 1) path = path.replace(/\/$/, '');
+    return path.toLowerCase();
+  } catch {
+    let path = String(value).trim();
+    if (!path.startsWith('/')) path = `/${path}`;
+    path = path.replace(/\.html?$/i, '');
+    if (path.length > 1) path = path.replace(/\/$/, '');
+    return path.toLowerCase();
+  }
+};
+
+function renderMetrics(data) {
+  document.querySelector('#metric-findings').textContent = data.summary?.activeFindings ?? 0;
+  document.querySelector('#metric-priorities').textContent = data.summary?.priorityActions ?? 0;
+  document.querySelector('#metric-tools').textContent = data.summary?.toolsReporting ?? 0;
+  document.querySelector('#metric-critical').textContent = data.summary?.criticalFailures ?? 0;
+  document.querySelector('#overall-status').textContent = data.overall?.label || 'System status unavailable';
+  document.querySelector('#overall-summary').textContent = data.overall?.summary || 'No system summary is available.';
+  document.querySelector('#snapshot-time').textContent = formatSnapshot(data.generatedAt);
+}
+
+function renderSystems(systems = []) {
+  const target = document.querySelector('#system-grid');
+  if (!systems.length) {
+    target.innerHTML = '<div class="empty-state">No specialist tools are reporting into Curator Intelligence yet.</div>';
+    return;
+  }
+  target.innerHTML = systems.map(system => `
+    <article class="system-card">
+      <header>
+        <h3>${escapeHtml(system.name)}</h3>
+        <span class="badge ${escapeHtml(system.status || 'info')}">${escapeHtml(system.statusLabel || system.status || 'Unknown')}</span>
+      </header>
+      <strong class="system-value">${escapeHtml(system.value ?? '—')}</strong>
+      <p>${escapeHtml(system.summary || '')}</p>
+      <footer>
+        <span>${escapeHtml(system.detail || '')}</span>
+        ${system.url ? `<a href="${escapeHtml(system.url)}">Open →</a>` : ''}
+      </footer>
+    </article>`).join('');
+}
+
+function renderPriorities(priorities = []) {
+  const target = document.querySelector('#priority-list');
+  if (!priorities.length) {
+    target.innerHTML = '<div class="empty-state">No prioritized cross-tool findings are active.</div>';
+    return;
+  }
+  target.innerHTML = priorities.map((item, index) => `
+    <article class="priority-card">
+      <span class="priority-rank">${index + 1}</span>
+      <div>
+        <h3>${escapeHtml(item.title)}</h3>
+        <p>${escapeHtml(item.summary || '')}</p>
+        <div class="priority-meta">
+          ${(item.sources || []).map(source => `<span class="chip">${escapeHtml(source)}</span>`).join('')}
+          ${item.entity ? `<span class="chip">${escapeHtml(item.entity)}</span>` : ''}
+          ${item.query ? `<span class="chip">${escapeHtml(item.query)}</span>` : ''}
+          ${item.correlated ? '<span class="chip">Correlated</span>' : ''}
+        </div>
+      </div>
+      <span class="severity ${escapeHtml(item.severity || 'low')}">${escapeHtml(item.severity || 'low')} priority</span>
+    </article>`).join('');
+}
+
+function renderStack(selector, items = [], emptyMessage) {
+  const target = document.querySelector(selector);
+  if (!items.length) {
+    target.innerHTML = `<div class="empty-state">${escapeHtml(emptyMessage)}</div>`;
+    return;
+  }
+  target.innerHTML = items.map(item => `
+    <article class="stack-item">
+      <strong>${escapeHtml(item.title)}</strong>
+      <p>${escapeHtml(item.summary || '')}</p>
+      ${item.meta ? `<small>${escapeHtml(item.meta)}</small>` : ''}
+    </article>`).join('');
+}
+
+function render(data) {
+  renderMetrics(data);
+  renderSystems(data.systems);
+  renderPriorities(data.priorities);
+  renderStack('#opportunity-list', data.opportunities, 'No opportunities have been promoted into the intelligence layer yet.');
+  renderStack('#activity-list', data.activity, 'No recent intelligence events are available.');
+}
+
+function mergeSystem(data, system) {
+  if (!system?.id) return;
+  const systems = Array.isArray(data.systems) ? [...data.systems] : [];
+  const index = systems.findIndex(item => item.id === system.id);
+  if (index >= 0) systems[index] = { ...systems[index], ...system, live: true };
+  else systems.push({ ...system, live: true });
+  data.systems = systems;
+}
+
+function mergeUnique(base = [], incoming = [], keyFn) {
+  const merged = [...incoming, ...base];
+  const seen = new Set();
+  return merged.filter(item => {
+    const key = keyFn(item);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function mergeAdapterPayload(data, payload) {
+  mergeSystem(data, payload.system);
+
+  data.priorities = mergeUnique(
+    Array.isArray(data.priorities) ? data.priorities : [],
+    Array.isArray(payload.priorities) ? payload.priorities : [],
+    item => `${item.title || ''}|${item.entity || ''}|${item.query || ''}`,
+  ).sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
+
+  data.opportunities = mergeUnique(
+    Array.isArray(data.opportunities) ? data.opportunities : [],
+    Array.isArray(payload.opportunities) ? payload.opportunities : [],
+    item => `${item.title || ''}|${item.entity || ''}|${item.query || ''}`,
+  );
+
+  data.activity = mergeUnique(
+    Array.isArray(data.activity) ? data.activity : [],
+    [
+      ...(Array.isArray(payload.activity) ? payload.activity : []),
+      {
+        title: `${payload.system.name} reporting live`,
+        summary: payload.system.summary,
+        meta: 'Live adapter · Curator Intelligence',
+      },
+    ],
+    item => `${item.title || ''}|${item.meta || ''}`,
+  );
+}
+
+function correlateSignals(data, payloads) {
+  const search = payloads.get('search-intelligence');
+  const linkMap = payloads.get('link-map');
+  if (!search?.ok || !linkMap?.ok) return;
+
+  const graphByPath = new Map((linkMap.pages || []).map(page => [normalizeEntity(page.path), page]));
+  const searchSignals = [
+    ...(Array.isArray(search.priorities) ? search.priorities : []),
+    ...(Array.isArray(search.opportunities) ? search.opportunities : []),
+  ];
+
+  const correlated = [];
+  const seen = new Set();
+
+  for (const signal of searchSignals) {
+    const entity = normalizeEntity(signal.entity);
+    if (!entity || seen.has(entity)) continue;
+    const graph = graphByPath.get(entity);
+    if (!graph) continue;
+
+    const inbound = Number(graph.inboundCount || 0);
+    const hasSuggestions = Array.isArray(graph.suggestions) && graph.suggestions.length > 0;
+    const weakSupport = graph.orphan || inbound <= 1;
+    if (!weakSupport) continue;
+
+    seen.add(entity);
+    const searchSeverity = signal.severity || (Number(signal.score || 0) >= 85 ? 'high' : 'medium');
+    const severity = graph.orphan || searchSeverity === 'high' ? 'high' : 'medium';
+    const graphDescription = graph.orphan
+      ? 'currently has no inbound internal links'
+      : `has only ${inbound} inbound internal link${inbound === 1 ? '' : 's'}`;
+    const recommendation = hasSuggestions
+      ? `Link Map has ${graph.suggestions.length} candidate source page${graph.suggestions.length === 1 ? '' : 's'} available to strengthen support.`
+      : 'Review the page in Link Map for appropriate internal-link support.';
+
+    correlated.push({
+      title: signal.title?.toLowerCase().includes('decline') || signal.title?.toLowerCase().includes('drop')
+        ? 'Search decline coincides with weak internal-link support'
+        : 'Search opportunity coincides with weak internal-link support',
+      summary: `${signal.entity} is showing a Search Intelligence signal and ${graphDescription}. ${recommendation}`,
+      severity,
+      entity: signal.entity,
+      query: signal.query || '',
+      score: Math.min(100, Number(signal.score || 70) + (graph.orphan ? 12 : 8)),
+      sources: ['Search Intelligence', 'Link Map'],
+      correlated: true,
+    });
+  }
+
+  if (!correlated.length) return;
+
+  data.priorities = mergeUnique(
+    Array.isArray(data.priorities) ? data.priorities : [],
+    correlated,
+    item => `${item.title || ''}|${item.entity || ''}|${item.query || ''}`,
+  ).sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
+
+  data.activity = mergeUnique(
+    Array.isArray(data.activity) ? data.activity : [],
+    [{
+      title: 'Cross-tool correlation completed',
+      summary: `${correlated.length} page${correlated.length === 1 ? '' : 's'} matched between Search Intelligence and Link Map with actionable combined signals.`,
+      meta: 'Curator Intelligence · Search Intelligence + Link Map',
+    }],
+    item => `${item.title || ''}|${item.meta || ''}`,
+  );
+}
+
+async function fetchAdapter(adapter) {
+  const response = await fetch(`${adapter.endpoint}?t=${Date.now()}`, { cache: 'no-store' });
+  if (!response.ok) throw new Error(`${adapter.id} returned ${response.status}`);
+  const payload = await response.json();
+  if (!payload?.ok || !payload?.system) throw new Error(`${adapter.id} returned an invalid intelligence signal`);
+  return payload;
+}
+
+async function mergeLiveAdapters(data) {
+  const results = await Promise.allSettled(LIVE_ADAPTERS.map(fetchAdapter));
+  const payloads = new Map();
+  let latestTimestamp = data.generatedAt || null;
+  let connectedCount = 0;
+
+  results.forEach((result, index) => {
+    const adapter = LIVE_ADAPTERS[index];
+    if (result.status === 'fulfilled') {
+      const payload = result.value;
+      payloads.set(adapter.id, payload);
+      mergeAdapterPayload(data, payload);
+      connectedCount += 1;
+
+      if (payload.generatedAt && (!latestTimestamp || new Date(payload.generatedAt) > new Date(latestTimestamp))) {
+        latestTimestamp = payload.generatedAt;
+      }
+    } else {
+      console.warn(`[Curator Intelligence] ${adapter.id} adapter unavailable`, result.reason);
+    }
+  });
+
+  correlateSignals(data, payloads);
+
+  const liveReporting = (data.systems || []).filter(system => system.live).length;
+  const priorities = Array.isArray(data.priorities) ? data.priorities : [];
+  const criticalFailures = priorities.filter(item => item.severity === 'critical').length;
+  const correlatedCount = priorities.filter(item => item.correlated).length;
+  data.summary = {
+    ...(data.summary || {}),
+    activeFindings: priorities.length,
+    priorityActions: priorities.filter(item => ['high', 'critical'].includes(item.severity)).length,
+    toolsReporting: liveReporting,
+    criticalFailures,
+  };
+  data.generatedAt = latestTimestamp;
+
+  if (connectedCount > 0) {
+    const signalCount = priorities.length;
+    data.overall = {
+      label: correlatedCount ? 'Cross-tool intelligence active' : signalCount ? 'Intelligence active' : 'Intelligence layer online',
+      summary: correlatedCount
+        ? `${connectedCount} live specialist adapters are reporting. ${correlatedCount} cross-tool conclusion${correlatedCount === 1 ? ' has' : 's have'} been produced by correlating Search Intelligence with Link Map.`
+        : signalCount
+          ? `${connectedCount} live specialist adapters are reporting with ${signalCount} normalized intelligence signal${signalCount === 1 ? '' : 's'}.`
+          : `${connectedCount} live specialist adapter${connectedCount === 1 ? ' is' : 's are'} reporting.`,
+    };
+  }
+
+  return data;
+}
+
+async function loadIntelligence() {
+  try {
+    const response = await fetch(`${INTELLIGENCE_ENDPOINT}?t=${Date.now()}`, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Intelligence feed returned ${response.status}`);
+    const baseData = await response.json();
+    const data = await mergeLiveAdapters(baseData);
+    render(data);
+  } catch (error) {
+    console.error('[Curator Intelligence]', error);
+    document.querySelector('#overall-status').textContent = 'Intelligence feed unavailable';
+    document.querySelector('#overall-summary').textContent = 'The dashboard shell is online, but its normalized intelligence feed could not be loaded.';
+    document.querySelector('#snapshot-time').textContent = 'Check data/intelligence.json';
+    renderSystems([]);
+    renderPriorities([]);
+    renderStack('#opportunity-list', [], 'The opportunity feed is unavailable.');
+    renderStack('#activity-list', [], 'The activity feed is unavailable.');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadIntelligence);
