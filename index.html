@@ -16,11 +16,11 @@
     window.__curatorSpeed = function(payload){ window.__CURATOR_ADAPTERS__['speed'] = payload; };
     window.__curatorIndexer = function(payload){ window.__CURATOR_ADAPTERS__['curator-indexer'] = payload; };
   </script>
-  <script src="https://site-health.oceanliners.net/api/curator-intelligence?callback=__curatorSiteHealth&v=20260806-14"></script>
-  <script src="https://search-intelligence.oceanliners.net/api/curator-intelligence?callback=__curatorSearchIntelligence&v=20260806-14"></script>
-  <script src="https://integrity.oceanliners.net/api/curator-intelligence?callback=__curatorIntegrity&v=20260806-14"></script>
-  <script src="https://speed.oceanliners.net/api/curator-intelligence?callback=__curatorSpeed&v=20260806-14"></script>
-  <script src="https://curator-indexer.oceanliners.net/api/curator-intelligence?callback=__curatorIndexer&v=20260806-14"></script>
+  <script src="https://site-health.oceanliners.net/api/curator-intelligence?callback=__curatorSiteHealth&v=20260806-15"></script>
+  <script src="https://search-intelligence.oceanliners.net/api/curator-intelligence?callback=__curatorSearchIntelligence&v=20260806-15"></script>
+  <script src="https://integrity.oceanliners.net/api/curator-intelligence?callback=__curatorIntegrity&v=20260806-15"></script>
+  <script src="https://speed.oceanliners.net/api/curator-intelligence?callback=__curatorSpeed&v=20260806-15"></script>
+  <script src="https://curator-indexer.oceanliners.net/api/curator-intelligence?callback=__curatorIndexer&v=20260806-15"></script>
   <script>
     (function(){
       const nativeFetch = window.fetch.bind(window);
@@ -49,7 +49,7 @@
       };
     })();
   </script>
-  <script src="./app.js?v=20260806-14" defer></script>
+  <script src="./app.js?v=20260806-15" defer></script>
   <script>
     window.addEventListener('load', function(){
       setTimeout(function(){
@@ -72,10 +72,10 @@
             if (badge) { badge.textContent = payload.system.statusLabel || 'Connected'; badge.className = `badge ${payload.system.status || 'good'}`; }
             if (value) value.textContent = payload.system.value ?? 'Live';
             if (summary) summary.textContent = payload.system.summary || `${name} is connected.`;
-            if (detail) detail.textContent = `${payload.system.detail || 'Live callback loaded'} · build CI-20260806-14`;
+            if (detail) detail.textContent = `${payload.system.detail || 'Live callback loaded'} · build CI-20260806-15`;
           } else {
             if (badge) { badge.textContent = 'Callback missing'; badge.className = 'badge warning'; }
-            if (detail) detail.textContent = `No callback payload executed · build CI-20260806-14`;
+            if (detail) detail.textContent = `No callback payload executed · build CI-20260806-15`;
           }
         }
       }, 1200);
