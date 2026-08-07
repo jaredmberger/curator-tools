@@ -50,6 +50,7 @@
     })();
   </script>
   <script src="./app.js?v=20260806-15" defer></script>
+  <script src="./actions-v2.js?v=20260806-1" defer></script>
   <script>
     window.addEventListener('load', function(){
       setTimeout(function(){
@@ -92,6 +93,7 @@
       <nav class="header-links" aria-label="Primary navigation">
         <a href="#overview">Overview</a>
         <a href="#attention">Attention</a>
+        <a href="#actions">Actions</a>
         <a href="#tools">Tools</a>
         <a class="curator-link" href="https://curator.oceanliners.net/">Open CuratorOS</a>
       </nav>
@@ -137,6 +139,22 @@
           <p>Findings are ranked across systems instead of being trapped inside separate dashboards.</p>
         </div>
         <div id="priority-list" class="priority-list" aria-live="polite"></div>
+      </section>
+
+      <section id="actions" class="intelligence-section split-section" aria-label="Action registry">
+        <div>
+          <div class="section-heading compact">
+            <div><p class="eyebrow">Recommended actions</p><h2>Move a decision into the action loop.</h2></div>
+          </div>
+          <div id="action-candidate-list" class="stack-list"><div class="empty-state">Waiting for Decision Engine recommendations…</div></div>
+        </div>
+        <div>
+          <div class="section-heading compact">
+            <div><p class="eyebrow">Tracked interventions</p><h2>Persistent Action Registry.</h2></div>
+          </div>
+          <p id="action-registry-status">Loading persistent intervention registry…</p>
+          <div id="tracked-action-list" class="stack-list"><div class="empty-state">Loading tracked interventions…</div></div>
+        </div>
       </section>
 
       <section class="intelligence-section split-section" aria-label="Opportunities and activity">
